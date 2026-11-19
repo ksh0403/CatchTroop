@@ -14,8 +14,17 @@ class GameScene extends Phaser.Scene {
     // 플레이어
     this.player = this.add.circle(400, 300, 20, 0xffd166);
 
+    // 플레이어 체력
+    this.playerMaxHp = 5;
+    this.playerHp = 5;
+    this.lastPlayerHitTime = -1000;
+    this.isGameOver = false;
+
     // 키보드 입력
     this.cursors = this.input.keyboard.createCursorKeys();
+    this.restartKey = this.input.keyboard.addKey(
+      Phaser.Input.Keyboard.KeyCodes.R
+    );
 
     this.wasd = this.input.keyboard.addKeys({
       up: Phaser.Input.Keyboard.KeyCodes.W,
@@ -47,6 +56,12 @@ class GameScene extends Phaser.Scene {
       color: '#ffffff',
     });
 
+    // 플레이어 체력 UI
+    this.hpText = this.add.text(20, 50, 'HP: ❤️❤️❤️❤️❤️', {
+      fontSize: '22px',
+      color: '#ffffff',
+    });
+
     this.add.text(400, 550, 'Move: WASD / Arrow Keys', {
       fontSize: '18px',
       color: '#ffffff',
@@ -54,6 +69,15 @@ class GameScene extends Phaser.Scene {
   }
 
   update(time, delta) {
+    if (this.isGameOver) {
+      // R 키를 누르면 게임 처음부터 다시 시작
+      if (Phaser.Input.Keyboard.JustDown(this.restartKey)) {
+        this.scene.restart();
+      }
+    
+      return;
+    }
+
     const dt = delta / 1000;
 
     // ─────────────────────
@@ -88,18 +112,70 @@ class GameScene extends Phaser.Scene {
 
       const distance = enemyDirection.length();
 
-      if (distance > 35) {
+      if (distance > 30) {
         enemyDirection.normalize();
 
         const moveDistance = Math.min(
           75 * dt,
-          distance - 35
+          distance - 30
         );
 
         this.enemy.x += enemyDirection.x * moveDistance;
         this.enemy.y += enemyDirection.y * moveDistance;
       }
     }
+
+    // 적과 플레이어 충돌 확인
+    if (this.enemy && this.enemy.active) {
+      const distanceToPlayer = Phaser.Math.Distance.Between(
+        this.player.x,
+        this.player.y,
+        this.enemy.x,
+        this.enemy.y
+      );
+
+      // 적과 닿았고, 마지막 피격 이후 1초가 지났을 때
+      if (
+        distanceToPlayer <= 35 &&
+        this.playerHp > 0 &&
+        time - this.lastPlayerHitTime >= 1000
+      ) {
+        // 마지막 피격 시간 기록
+        this.lastPlayerHitTime = time;
+
+        // 체력 1 감소
+        this.playerHp -= 1;
+
+        // 하트 UI 갱신
+        this.hpText.setText(
+          'HP: ' + '❤️'.repeat(this.playerHp)
+        );
+
+        // 체력이 0이 되면 게임 종료
+        if (this.playerHp <= 0) {
+          this.isGameOver = true;
+
+          // 게임 오버 문구
+          this.add.text(400, 300, 'GAME OVER', {
+            fontSize: '64px',
+            color: '#ff6b6b',
+            fontStyle: 'bold',
+            stroke: '#000000',
+            strokeThickness: 5,
+          }).setOrigin(0.5).setDepth(10);
+        }
+
+        // 피격 효과: 플레이어가 빨간색으로 변함
+        this.player.setFillStyle(0xff6b6b);
+
+        this.time.delayedCall(200, () => {
+          if (this.player.active) {
+            this.player.setFillStyle(0xffd166);
+          }
+        });
+      }
+    }
+
 
     // ─────────────────────
     // 3. 플레이어 자동 공격
@@ -164,7 +240,7 @@ class GameScene extends Phaser.Scene {
       }
     }
 
-    
+
     // ─────────────────────
     // 5. 아군 행동
     // ─────────────────────
