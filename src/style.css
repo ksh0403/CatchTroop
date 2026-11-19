@@ -1,0 +1,12 @@
+
+body {
+  margin: 0;
+  background-color: #171f1b;
+}
+
+#app {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
