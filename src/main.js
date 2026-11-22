@@ -42,7 +42,19 @@ class GameScene extends Phaser.Scene {
 
     // 적
     this.enemy = null;
+    this.enemies = [];
     this.spawnEnemy();
+
+    // 3초마다 새로운 적 생성
+    this.time.addEvent({
+      delay: 3000,
+      callback: () => {
+        if (!this.isGameOver) {
+          this.spawnEnemy();
+        }
+      },
+      loop: true,
+    });
 
     // UI
     this.add.text(400, 60, 'CATCHTROOP', {
@@ -74,7 +86,7 @@ class GameScene extends Phaser.Scene {
       if (Phaser.Input.Keyboard.JustDown(this.restartKey)) {
         this.scene.restart();
       }
-    
+
       return;
     }
 
@@ -104,10 +116,12 @@ class GameScene extends Phaser.Scene {
     // 2. 적 몬스터 추적
     // ─────────────────────
 
-    if (this.enemy && this.enemy.active) {
+    for (const enemy of this.enemies) {
+      if (!enemy.active) continue;
+
       const enemyDirection = new Phaser.Math.Vector2(
-        this.player.x - this.enemy.x,
-        this.player.y - this.enemy.y
+        this.player.x - enemy.x,
+        this.player.y - enemy.y
       );
 
       const distance = enemyDirection.length();
@@ -120,18 +134,56 @@ class GameScene extends Phaser.Scene {
           distance - 30
         );
 
-        this.enemy.x += enemyDirection.x * moveDistance;
-        this.enemy.y += enemyDirection.y * moveDistance;
+        enemy.x += enemyDirection.x * moveDistance;
+        enemy.y += enemyDirection.y * moveDistance;
+      }
+    }
+
+    // 적끼리 겹치지 않도록 간격 유지
+    const minEnemyDistance = 25;
+
+    for (let i = 0; i < this.enemies.length; i++) {
+      for (let j = i + 1; j < this.enemies.length; j++) {
+        const enemyA = this.enemies[i];
+        const enemyB = this.enemies[j];
+
+        if (!enemyA.active || !enemyB.active) continue;
+
+        const dx = enemyB.x - enemyA.x;
+        const dy = enemyB.y - enemyA.y;
+
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        if (distance < minEnemyDistance) {
+          // 정확히 같은 위치일 때도 분리할 방향 설정
+          const angle =
+            distance === 0
+              ? Math.random() * Math.PI * 2
+              : Math.atan2(dy, dx);
+
+          const overlap = (minEnemyDistance - distance) / 2;
+
+          const pushX = Math.cos(angle) * overlap;
+          const pushY = Math.sin(angle) * overlap;
+
+          enemyA.x -= pushX;
+          enemyA.y -= pushY;
+
+          enemyB.x += pushX;
+          enemyB.y += pushY;
+        }
       }
     }
 
     // 적과 플레이어 충돌 확인
-    if (this.enemy && this.enemy.active) {
+    for (const enemy of this.enemies) {
+      if (!enemy.active) continue;
+
       const distanceToPlayer = Phaser.Math.Distance.Between(
         this.player.x,
         this.player.y,
-        this.enemy.x,
-        this.enemy.y
+        enemy.x,
+        enemy.y
       );
 
       // 적과 닿았고, 마지막 피격 이후 1초가 지났을 때
@@ -155,7 +207,6 @@ class GameScene extends Phaser.Scene {
         if (this.playerHp <= 0) {
           this.isGameOver = true;
 
-          // 게임 오버 문구
           this.add.text(400, 300, 'GAME OVER', {
             fontSize: '64px',
             color: '#ff6b6b',
@@ -165,7 +216,7 @@ class GameScene extends Phaser.Scene {
           }).setOrigin(0.5).setDepth(10);
         }
 
-        // 피격 효과: 플레이어가 빨간색으로 변함
+        // 피격 효과
         this.player.setFillStyle(0xff6b6b);
 
         this.time.delayedCall(200, () => {
@@ -173,27 +224,33 @@ class GameScene extends Phaser.Scene {
             this.player.setFillStyle(0xffd166);
           }
         });
+
+        // 한 프레임에 중복 피격되지 않도록 종료
+        break;
       }
     }
+
 
 
     // ─────────────────────
     // 3. 플레이어 자동 공격
     // ─────────────────────
 
-    if (this.enemy && this.enemy.active) {
+    const nearestEnemy = this.getNearestEnemy();
+
+    if (nearestEnemy) {
       const distanceToEnemy = Phaser.Math.Distance.Between(
         this.player.x,
         this.player.y,
-        this.enemy.x,
-        this.enemy.y
+        nearestEnemy.x,
+        nearestEnemy.y
       );
 
       if (
         distanceToEnemy <= 200 &&
         time - this.lastAttackTime >= 600
       ) {
-        this.shootBullet();
+        this.shootBullet(nearestEnemy);
         this.lastAttackTime = time;
       }
     }
@@ -208,26 +265,35 @@ class GameScene extends Phaser.Scene {
       bullet.x += bullet.vx * 350 * dt;
       bullet.y += bullet.vy * 350 * dt;
 
-      if (this.enemy && this.enemy.active) {
-        const hitEnemy = this.enemy;
+      let bulletHit = false;
+
+      for (const enemy of this.enemies) {
+        if (!enemy.active) continue;
 
         const bulletDistance = Phaser.Math.Distance.Between(
           bullet.x,
           bullet.y,
-          hitEnemy.x,
-          hitEnemy.y
+          enemy.x,
+          enemy.y
         );
 
         if (bulletDistance <= 21) {
           bullet.destroy();
           this.bullets.splice(i, 1);
 
-          // 공통 피해 처리 함수 사용
-          this.damageEnemy(1);
+          // 충돌한 적에게 피해 적용
+          this.damageEnemy(1, enemy);
 
-          continue;
+          bulletHit = true;
+          break;
         }
       }
+
+      // 충돌한 마법탄은 이후 처리하지 않음
+      if (bulletHit) {
+        continue;
+      }
+
 
       if (
         bullet.x < 0 ||
@@ -250,13 +316,16 @@ class GameScene extends Phaser.Scene {
 
       let isFighting = false;
 
-      // 적이 존재하면 전투 여부 확인
-      if (this.enemy && this.enemy.active) {
+      // 아군에게 가장 가까운 적 찾기
+      const targetEnemy = this.getNearestEnemyTo(ally);
+
+      // 가까운 적이 존재하면 전투 여부 확인
+      if (targetEnemy && targetEnemy.active) {
         const enemyDistance = Phaser.Math.Distance.Between(
           ally.x,
           ally.y,
-          this.enemy.x,
-          this.enemy.y
+          targetEnemy.x,
+          targetEnemy.y
         );
 
         // 적이 180px 이내면 전투 시작
@@ -266,8 +335,8 @@ class GameScene extends Phaser.Scene {
           // 적과 거리가 28px보다 멀면 접근
           if (enemyDistance > 28) {
             const attackDirection = new Phaser.Math.Vector2(
-              this.enemy.x - ally.x,
-              this.enemy.y - ally.y
+              targetEnemy.x - ally.x,
+              targetEnemy.y - ally.y
             ).normalize();
 
             const moveDistance = Math.min(
@@ -283,8 +352,8 @@ class GameScene extends Phaser.Scene {
           const newDistance = Phaser.Math.Distance.Between(
             ally.x,
             ally.y,
-            this.enemy.x,
-            this.enemy.y
+            targetEnemy.x,
+            targetEnemy.y
           );
 
           // 공격 거리 안이면 0.8초마다 반복 공격
@@ -303,8 +372,8 @@ class GameScene extends Phaser.Scene {
               }
             });
 
-            // 적에게 피해 1
-            this.damageEnemy(1);
+            // 선택한 적에게 피해 1
+            this.damageEnemy(1, targetEnemy);
           }
         }
       }
@@ -340,20 +409,104 @@ class GameScene extends Phaser.Scene {
       }
     }
 
+    // ─────────────────────
+    // 아군끼리 겹치지 않도록 간격 유지
+    // ─────────────────────
+
+    for (let i = 0; i < this.allies.length; i++) {
+      for (let j = i + 1; j < this.allies.length; j++) {
+        const allyA = this.allies[i];
+        const allyB = this.allies[j];
+
+        // 모든 아군은 중심 사이 거리 최소 30px을 유지함
+        const minAllyDistance = 30;
+
+        const dx = allyB.x - allyA.x;
+        const dy = allyB.y - allyA.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        if (distance < minAllyDistance) {
+          // 완전히 같은 위치에 있을 때도 방향을 만들기
+          const angle = distance === 0
+            ? Math.random() * Math.PI * 2
+            : Math.atan2(dy, dx);
+
+          const overlap = (minAllyDistance - distance) / 2;
+
+          const pushX = Math.cos(angle) * overlap;
+          const pushY = Math.sin(angle) * overlap;
+
+          allyA.x -= pushX;
+          allyA.y -= pushY;
+
+          allyB.x += pushX;
+          allyB.y += pushY;
+        }
+      }
+    }
+
   }
 
   // ─────────────────────
   // 6. 마법탄 생성
   // ─────────────────────
 
-  shootBullet() {
-    if (!this.enemy || !this.enemy.active) return;
+  // 플레이어에게 가장 가까운 적 찾기
+  getNearestEnemy() {
+    let nearestEnemy = null;
+    let nearestDistance = Infinity;
+
+    for (const enemy of this.enemies) {
+      if (!enemy.active) continue;
+
+      const distance = Phaser.Math.Distance.Between(
+        this.player.x,
+        this.player.y,
+        enemy.x,
+        enemy.y
+      );
+
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestEnemy = enemy;
+      }
+    }
+
+    return nearestEnemy;
+  }
+
+  // 특정 캐릭터에게 가장 가까운 적 찾기
+  getNearestEnemyTo(character) {
+    let nearestEnemy = null;
+    let nearestDistance = Infinity;
+
+    for (const enemy of this.enemies) {
+      if (!enemy.active) continue;
+
+      const distance = Phaser.Math.Distance.Between(
+        character.x,
+        character.y,
+        enemy.x,
+        enemy.y
+      );
+
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestEnemy = enemy;
+      }
+    }
+
+    return nearestEnemy;
+  }
+
+  shootBullet(targetEnemy) {
+    if (!targetEnemy || !targetEnemy.active) return;
 
     const angle = Phaser.Math.Angle.Between(
       this.player.x,
       this.player.y,
-      this.enemy.x,
-      this.enemy.y
+      targetEnemy.x,
+      targetEnemy.y
     );
 
     const bullet = this.add.circle(
@@ -374,14 +527,52 @@ class GameScene extends Phaser.Scene {
   // ─────────────────────
 
   spawnEnemy() {
-    this.enemy = this.add.circle(
-      100,
-      100,
+    let spawnX = 100;
+    let spawnY = 100;
+    let validPosition = false;
+
+    // 최대 30번까지 겹치지 않는 위치 탐색
+    for (let attempt = 0; attempt < 30; attempt++) {
+      const x = Phaser.Math.Between(30, 770);
+      const y = Phaser.Math.Between(100, 520);
+
+      // 다른 적과 최소 50px 간격 유지
+      const tooCloseToEnemy = this.enemies.some(enemy => {
+        return Phaser.Math.Distance.Between(
+          x, y, enemy.x, enemy.y
+        ) < 50;
+      });
+
+      // 플레이어와 최소 150px 간격 유지
+      const tooCloseToPlayer =
+        Phaser.Math.Distance.Between(
+          x, y, this.player.x, this.player.y
+        ) < 150;
+
+      if (!tooCloseToEnemy && !tooCloseToPlayer) {
+        spawnX = x;
+        spawnY = y;
+        validPosition = true;
+        break;
+      }
+    }
+
+    // 적당한 위치를 찾지 못했다면 이번 생성은 건너뛰기
+    if (!validPosition) return;
+
+    const enemy = this.add.circle(
+      spawnX,
+      spawnY,
       15,
       0xff6b6b
     );
 
-    this.enemy.hp = 8;
+    enemy.hp = 8;
+
+    this.enemies.push(enemy);
+
+    // 기존 코드와의 호환성 유지
+    this.enemy = enemy;
   }
 
   // ─────────────────────
@@ -412,10 +603,10 @@ class GameScene extends Phaser.Scene {
   // 9. 적 피해 및 사망 처리
   // ─────────────────────
 
-  damageEnemy(damage) {
-    if (!this.enemy || !this.enemy.active) return;
+  damageEnemy(damage, targetEnemy = this.enemy) {
+    if (!targetEnemy || !targetEnemy.active) return;
 
-    const hitEnemy = this.enemy;
+    const hitEnemy = targetEnemy;
 
     hitEnemy.hp -= damage;
 
@@ -425,6 +616,12 @@ class GameScene extends Phaser.Scene {
       const deadY = hitEnemy.y;
 
       hitEnemy.destroy();
+
+      // 처치된 적을 배열에서 제거
+      this.enemies = this.enemies.filter(
+        enemy => enemy !== hitEnemy
+      );
+
       this.enemy = null;
 
       // 50% 확률로 아군 전환
