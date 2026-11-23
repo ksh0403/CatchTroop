@@ -37,6 +37,9 @@ class GameScene extends Phaser.Scene {
     this.bullets = [];
     this.lastAttackTime = 0;
 
+    // 적이 발사하는 투사체
+    this.enemyBullets = [];
+
     // 아군
     this.allies = [];
 
@@ -159,16 +162,48 @@ class GameScene extends Phaser.Scene {
 
       const distance = enemyDirection.length();
 
-      if (distance > 30) {
+      // 몬스터 종류에 따라 목표 거리 설정
+      const targetDistance =
+        enemy.monsterType === 'ranged' ? 150 : 30;
+
+      if (distance > targetDistance) {
         enemyDirection.normalize();
 
         const moveDistance = Math.min(
           75 * dt,
-          distance - 30
+          distance - targetDistance
         );
 
         enemy.x += enemyDirection.x * moveDistance;
         enemy.y += enemyDirection.y * moveDistance;
+      }
+
+      // 원거리형 몬스터만 2초마다 탄환 발사
+      if (
+        enemy.monsterType === 'ranged' &&
+        distance <= 250 &&
+        time - enemy.lastAttackTime >= 2000
+      ) {
+        enemy.lastAttackTime = time;
+
+        const angle = Phaser.Math.Angle.Between(
+          enemy.x,
+          enemy.y,
+          this.player.x,
+          this.player.y
+        );
+
+        const bullet = this.add.circle(
+          enemy.x,
+          enemy.y,
+          6,
+          0xffa94d
+        );
+
+        bullet.vx = Math.cos(angle);
+        bullet.vy = Math.sin(angle);
+
+        this.enemyBullets.push(bullet);
       }
     }
 
@@ -263,7 +298,70 @@ class GameScene extends Phaser.Scene {
       }
     }
 
+    // ─────────────────────
+    // 적 원거리 탄환 이동
+    // ─────────────────────
 
+    for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
+      const bullet = this.enemyBullets[i];
+
+      // 탄환 이동
+      bullet.x += bullet.vx * 180 * dt;
+      bullet.y += bullet.vy * 180 * dt;
+
+      // 플레이어와 탄환 충돌 확인
+      const distanceToPlayer = Phaser.Math.Distance.Between(
+        bullet.x,
+        bullet.y,
+        this.player.x,
+        this.player.y
+      );
+
+      // 탄환에 맞았고, 마지막 피격 이후 1초가 지났다면
+      if (
+        distanceToPlayer <= 26 &&
+        time - this.lastPlayerHitTime >= 1000
+      ) {
+        this.lastPlayerHitTime = time;
+
+        // 플레이어 체력 감소
+        this.playerHp -= 1;
+
+        this.hpText.setText(
+          'HP: ' + '❤️'.repeat(this.playerHp)
+        );
+
+        // 탄환 제거
+        bullet.destroy();
+        this.enemyBullets.splice(i, 1);
+
+        // 체력이 0이면 게임 오버
+        if (this.playerHp <= 0) {
+          this.isGameOver = true;
+
+          this.add.text(400, 300, 'GAME OVER', {
+            fontSize: '64px',
+            color: '#ff6b6b',
+            fontStyle: 'bold',
+            stroke: '#000000',
+            strokeThickness: 5,
+          }).setOrigin(0.5).setDepth(10);
+        }
+
+        continue;
+      }
+
+      // 화면 밖으로 나가면 제거
+      if (
+        bullet.x < 0 ||
+        bullet.x > 800 ||
+        bullet.y < 0 ||
+        bullet.y > 600
+      ) {
+        bullet.destroy();
+        this.enemyBullets.splice(i, 1);
+      }
+    }
 
     // ─────────────────────
     // 3. 플레이어 자동 공격
@@ -601,6 +699,19 @@ class GameScene extends Phaser.Scene {
     );
 
     enemy.hp = 8;
+    enemy.lastAttackTime = 0;
+
+    // 몬스터 종류: 근접형 또는 원거리형
+    enemy.monsterType = Math.random() < 0.5
+      ? 'melee'
+      : 'ranged';
+
+    // 몬스터 종류에 따라 색상 구분
+    if (enemy.monsterType === 'melee') {
+      enemy.setFillStyle(0xff6b6b); // 근접형: 빨간색
+    } else {
+      enemy.setFillStyle(0xb388ff); // 원거리형: 보라색
+    }
 
     this.enemies.push(enemy);
 
@@ -703,7 +814,11 @@ class GameScene extends Phaser.Scene {
 
       this.time.delayedCall(100, () => {
         if (hitEnemy.active) {
-          hitEnemy.setFillStyle(0xff6b6b);
+          hitEnemy.setFillStyle(
+            hitEnemy.monsterType === 'ranged'
+              ? 0xb388ff
+              : 0xff6b6b
+          );
         }
       });
     }
