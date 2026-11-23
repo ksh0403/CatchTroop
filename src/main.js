@@ -7,6 +7,19 @@ class GameScene extends Phaser.Scene {
     super('GameScene');
   }
 
+  // 몬스터 이미지 불러오기
+  preload() {
+    this.load.image(
+      'leaf_slime',
+      'src/assets/monsters/melee/leaf_slime.png'
+    );
+
+    this.load.image(
+      'star_mage',
+      'src/assets/monsters/ranged/star_mage.png'
+    );
+  }
+
   create() {
     // 배경
     this.cameras.main.setBackgroundColor('#294b3a');
@@ -150,7 +163,7 @@ class GameScene extends Phaser.Scene {
           const x = candidate.x;
           const y = candidate.y;
 
-          candidate.destroy();
+          this.destroyCaptureCandidate(candidate);
           this.captureCandidates.splice(i, 1);
 
           this.spawnAlly(x, y, candidate.monsterType);
@@ -214,6 +227,11 @@ class GameScene extends Phaser.Scene {
 
         enemy.x += enemyDirection.x * moveDistance;
         enemy.y += enemyDirection.y * moveDistance;
+      }
+
+      // 몬스터 이미지가 적의 위치를 따라가도록 설정
+      if (enemy.monsterImage) {
+        enemy.monsterImage.setPosition(enemy.x, enemy.y);
       }
 
       // 원거리형 몬스터만 2초마다 탄환 발사
@@ -377,7 +395,6 @@ class GameScene extends Phaser.Scene {
         // 체력이 0이면 게임 오버
         if (this.playerHp <= 0) {
           this.isGameOver = true;
-
           this.add.text(400, 300, 'GAME OVER', {
             fontSize: '64px',
             color: '#ff6b6b',
@@ -541,19 +558,6 @@ class GameScene extends Phaser.Scene {
           ) {
             ally.lastAttackTime = time;
 
-            // 공격 효과
-            ally.setFillStyle(0xffff99);
-
-            this.time.delayedCall(250, () => {
-              if (ally.active) {
-                ally.setFillStyle(
-                  ally.monsterType === 'ranged'
-                    ? 0x60a5fa
-                    : 0x6ee7b7
-                );
-              }
-            });
-
             if (ally.monsterType === 'ranged') {
               // 원거리형: 적을 향해 마법탄 발사
               const angle = Phaser.Math.Angle.Between(
@@ -649,6 +653,13 @@ class GameScene extends Phaser.Scene {
           allyB.x += pushX;
           allyB.y += pushY;
         }
+      }
+    }
+
+    // 아군 몬스터 이미지가 실제 아군 위치를 따라가도록 설정
+    for (const ally of this.allies) {
+      if (ally.active && ally.monsterImage) {
+        ally.monsterImage.setPosition(ally.x, ally.y);
       }
     }
 
@@ -789,6 +800,55 @@ class GameScene extends Phaser.Scene {
       enemy.setFillStyle(0xb388ff); // 원거리형: 보라색
     }
 
+    // 근접형 적에게 리프 슬라임 이미지 표시
+    if (enemy.monsterType === 'melee') {
+      enemy.monsterImage = this.add.image(
+        enemy.x,
+        enemy.y,
+        'leaf_slime'
+      );
+
+      enemy.monsterImage.setDisplaySize(40, 40);
+      enemy.monsterImage.setDepth(2);
+
+      // PNG 실루엣을 따라 빨간 외곽 효과
+      enemy.monsterImage.postFX.addGlow(
+        0xff3333,
+        4,
+        0,
+        false,
+        0.1,
+        12
+      );
+    }
+
+    // 원거리형 적에게 스타 마지 이미지 표시
+    if (enemy.monsterType === 'ranged') {
+      enemy.monsterImage = this.add.image(
+        enemy.x,
+        enemy.y,
+        'star_mage'
+      );
+
+      enemy.monsterImage.setDisplaySize(40, 40);
+      enemy.monsterImage.setDepth(2);
+
+      // 원거리 적의 빨간색 테두리
+      enemy.monsterImage.postFX.addGlow(
+        0xff3333,
+        4,
+        0,
+        false,
+        0.1,
+        12
+      );
+    }
+
+    // 이미지가 있는 적은 기존 원을 숨김
+    if (enemy.monsterImage) {
+      enemy.setAlpha(0);
+    }
+
     this.enemies.push(enemy);
 
     // 기존 코드와의 호환성 유지
@@ -922,6 +982,11 @@ class GameScene extends Phaser.Scene {
         // 1. 교체할 아군 제거
         const oldAlly = this.allies[i];
 
+        // 교체되는 아군의 몬스터 이미지도 제거
+        if (oldAlly.monsterImage) {
+          oldAlly.monsterImage.destroy();
+        }
+
         oldAlly.destroy();
         this.allies.splice(i, 1);
 
@@ -933,7 +998,7 @@ class GameScene extends Phaser.Scene {
         const monsterType = candidate.monsterType;
 
         // 3. 포획 후보 제거
-        candidate.destroy();
+        this.destroyCaptureCandidate(candidate);
 
         this.captureCandidates = this.captureCandidates.filter(
           item => item !== candidate
@@ -991,7 +1056,7 @@ class GameScene extends Phaser.Scene {
       // 포획 후보 제거
       const candidate = this.selectedCaptureCandidate;
 
-      candidate.destroy();
+      this.destroyCaptureCandidate(candidate);
 
       this.captureCandidates = this.captureCandidates.filter(
         item => item !== candidate
@@ -1039,6 +1104,56 @@ class GameScene extends Phaser.Scene {
       ally.setFillStyle(0x6ee7b7); // 근접형 아군: 초록색
     }
 
+    // 근접형 아군에게 리프 슬라임 이미지 표시
+    if (monsterType === 'melee') {
+      ally.monsterImage = this.add.image(
+        ally.x,
+        ally.y,
+        'leaf_slime'
+      );
+
+      ally.monsterImage.setDisplaySize(40, 40);
+      ally.monsterImage.setDepth(2);
+
+      // PNG 모양을 따라 민트색 테두리 표시
+      ally.monsterImage.postFX.addGlow(
+        0x34d399,
+        4,
+        0,
+        false,
+        0.1,
+        12
+      );
+
+      // 기존 초록색 원 숨기기
+      ally.setAlpha(0);
+    }
+
+    // 원거리형 아군에게 스타 마지 이미지 표시
+    if (monsterType === 'ranged') {
+      ally.monsterImage = this.add.image(
+        ally.x,
+        ally.y,
+        'star_mage'
+      );
+
+      ally.monsterImage.setDisplaySize(40, 40);
+      ally.monsterImage.setDepth(2);
+
+      // 아군은 민트색 테두리
+      ally.monsterImage.postFX.addGlow(
+        0x34d399,
+        4,
+        0,
+        false,
+        0.1,
+        12
+      );
+
+      // 기존 파란색 원 숨기기
+      ally.setAlpha(0);
+    }
+
     // 아군별 공격 시간 기록
     ally.lastAttackTime = 0;
 
@@ -1047,6 +1162,17 @@ class GameScene extends Phaser.Scene {
     this.allyText.setText(
       `Allies: ${this.allies.length} / 10`
     );
+  }
+
+  // 포획 후보와 몬스터 이미지를 함께 제거
+  destroyCaptureCandidate(candidate) {
+    if (!candidate || !candidate.active) return;
+
+    if (candidate.monsterImage) {
+      candidate.monsterImage.destroy();
+    }
+
+    candidate.destroy();
   }
 
   // ─────────────────────
@@ -1067,10 +1193,65 @@ class GameScene extends Phaser.Scene {
 
     candidate.monsterType = monsterType;
 
+    // 이미지가 있는 포획 후보는 기존 노란 원 숨기기
+    if (monsterType === 'melee') {
+      candidate.setAlpha(0);
+    }
+
+    // 근접형 포획 후보에게 리프 슬라임 이미지 표시
+    if (monsterType === 'melee') {
+      candidate.monsterImage = this.add.image(
+        x,
+        y,
+        'leaf_slime'
+      );
+
+      candidate.monsterImage.setDisplaySize(40, 40);
+      candidate.monsterImage.setDepth(2);
+
+      // 포획 가능한 몬스터는 노란색으로 빛나게 표시
+      candidate.monsterImage.postFX.addGlow(
+        0xffdd00,
+        5,
+        0,
+        false,
+        0.1,
+        12
+      );
+    }
+
+    // 원거리형 포획 후보에게 스타 마지 이미지 표시
+    if (monsterType === 'ranged') {
+      candidate.monsterImage = this.add.image(
+        x,
+        y,
+        'star_mage'
+      );
+
+      candidate.monsterImage.setDisplaySize(40, 40);
+      candidate.monsterImage.setDepth(2);
+
+      // 포획 후보는 노란색 테두리
+      candidate.monsterImage.postFX.addGlow(
+        0xffdd00,
+        5,
+        0,
+        false,
+        0.1,
+        12
+      );
+
+      // 기존 노란색 원 숨기기
+      candidate.setAlpha(0);
+    }
+
     this.captureCandidates.push(candidate);
 
     // 10초 후 포획 후보 소멸
     this.time.delayedCall(10000, () => {
+      // 게임 오버 상태라면 포획 후보를 삭제하지 않음
+      if (this.isGameOver) return;
+
       if (!candidate.active) return;
 
       // 교체 중인 포획 후보는 사라지지 않도록 보호
@@ -1081,7 +1262,7 @@ class GameScene extends Phaser.Scene {
         return;
       }
 
-      candidate.destroy();
+      this.destroyCaptureCandidate(candidate);
 
       this.captureCandidates =
         this.captureCandidates.filter(
@@ -1109,6 +1290,11 @@ class GameScene extends Phaser.Scene {
       // 처치한 몬스터의 종류 저장
       const deadMonsterType = hitEnemy.monsterType;
 
+      // 적이 죽으면 몬스터 이미지도 함께 제거
+      if (hitEnemy.monsterImage) {
+        hitEnemy.monsterImage.destroy();
+      }
+
       hitEnemy.destroy();
 
       // 처치된 적을 배열에서 제거
@@ -1133,6 +1319,11 @@ class GameScene extends Phaser.Scene {
       // 피격 효과
       hitEnemy.setFillStyle(0xffffff);
 
+      // PNG 몬스터도 피격 시 하얗게 반짝이기
+      if (hitEnemy.monsterImage) {
+        hitEnemy.monsterImage.setTintFill(0xffffff);
+      }
+
       this.time.delayedCall(100, () => {
         if (hitEnemy.active) {
           hitEnemy.setFillStyle(
@@ -1140,6 +1331,11 @@ class GameScene extends Phaser.Scene {
               ? 0xb388ff
               : 0xff6b6b
           );
+
+          // PNG 이미지의 원래 색상 복구
+          if (hitEnemy.monsterImage && hitEnemy.monsterImage.active) {
+            hitEnemy.monsterImage.clearTint();
+          }
         }
       });
     }
