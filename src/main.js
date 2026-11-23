@@ -26,6 +26,11 @@ class GameScene extends Phaser.Scene {
       Phaser.Input.Keyboard.KeyCodes.R
     );
 
+    // 개발용 테스트 키: T
+    this.testKey = this.input.keyboard.addKey(
+      Phaser.Input.Keyboard.KeyCodes.T
+    );
+
     this.wasd = this.input.keyboard.addKeys({
       up: Phaser.Input.Keyboard.KeyCodes.W,
       down: Phaser.Input.Keyboard.KeyCodes.S,
@@ -43,6 +48,9 @@ class GameScene extends Phaser.Scene {
     // 아군
     this.allies = [];
 
+    // 아군 교체 창이 열려 있는지 확인
+    this.isReplacingAlly = false;
+
     // 포획 후보
     this.captureCandidates = [];
 
@@ -51,11 +59,11 @@ class GameScene extends Phaser.Scene {
     this.enemies = [];
     this.spawnEnemy();
 
-    // 3초마다 새로운 적 생성
+    // 5초마다 새로운 적 생성
     this.time.addEvent({
-      delay: 3000,
+      delay: 5000,
       callback: () => {
-        if (!this.isGameOver) {
+        if (!this.isGameOver && !this.isReplacingAlly) {
           this.spawnEnemy();
         }
       },
@@ -87,6 +95,11 @@ class GameScene extends Phaser.Scene {
   }
 
   update(time, delta) {
+    // 아군 교체 창이 열려 있으면 게임 진행 중단
+    if (this.isReplacingAlly) {
+      return;
+    }
+
     if (this.isGameOver) {
       // R 키를 누르면 게임 처음부터 다시 시작
       if (Phaser.Input.Keyboard.JustDown(this.restartKey)) {
@@ -97,6 +110,23 @@ class GameScene extends Phaser.Scene {
     }
 
     const dt = delta / 1000;
+
+    // 개발용 테스트: T 키를 누르면 아군 10마리 채우기
+    if (Phaser.Input.Keyboard.JustDown(this.testKey)) {
+      while (this.allies.length < 10) {
+        const monsterType = Math.random() < 0.5
+          ? 'melee'
+          : 'ranged';
+
+        this.spawnAlly(
+          this.player.x,
+          this.player.y,
+          monsterType
+        );
+      }
+
+      console.log('테스트용 아군 10마리 생성 완료!');
+    }
 
     // ─────────────────────
     // 포획 후보 영입
@@ -114,17 +144,25 @@ class GameScene extends Phaser.Scene {
         candidate.y
       );
 
-      // 플레이어가 가까이 왔고, 아군 자리가 남아 있다면 영입
-      if (distance <= 35 && this.allies.length < 10) {
-        const x = candidate.x;
-        const y = candidate.y;
+      if (distance <= 35) {
+        if (this.allies.length < 10) {
+          // 아군 자리가 남아 있으면 바로 영입
+          const x = candidate.x;
+          const y = candidate.y;
 
-        // 포획 후보 제거
-        candidate.destroy();
-        this.captureCandidates.splice(i, 1);
+          candidate.destroy();
+          this.captureCandidates.splice(i, 1);
 
-        // 아군으로 합류
-        this.spawnAlly(x, y, candidate.monsterType);
+          this.spawnAlly(x, y, candidate.monsterType);
+        } else if (!this.isReplacingAlly) {
+          // 아군이 10마리면 교체 모드 시작
+          this.isReplacingAlly = true;
+          this.selectedCaptureCandidate = candidate;
+          this.time.paused = true; // 게임 타이머 일시정지
+
+          console.log('아군 교체 모드 시작!');
+          this.showReplaceUI();
+        }
       }
     }
 
@@ -274,6 +312,7 @@ class GameScene extends Phaser.Scene {
         // 체력이 0이 되면 게임 종료
         if (this.playerHp <= 0) {
           this.isGameOver = true;
+          this.time.paused = true; // 게임 오버 시 모든 타이머 정지
 
           this.add.text(400, 300, 'GAME OVER', {
             fontSize: '64px',
@@ -760,6 +799,187 @@ class GameScene extends Phaser.Scene {
   // 8. 아군 생성
   // ─────────────────────
 
+  showReplaceUI() {
+    // 교체 창 배경
+    this.replacePanel = this.add.rectangle(
+      400, 300, 640, 300, 0x172a23
+    ).setStrokeStyle(3, 0xffffff).setDepth(20);
+
+    // 안내 문구
+    this.replaceText = this.add.text(
+      400, 180,
+      'Troop Full! Choose an ally to replace.',
+      {
+        fontSize: '22px',
+        color: '#ffffff',
+        fontStyle: 'bold',
+      }
+    ).setOrigin(0.5).setDepth(21);
+
+    // 아군 선택 버튼을 저장할 배열
+    this.replaceButtons = [];
+
+    // 아군 10마리를 5개씩 2줄로 배치
+    for (let i = 0; i < this.allies.length; i++) {
+      const col = i % 5;
+      const row = Math.floor(i / 5);
+
+      const x = 200 + col * 100;
+      const y = 240 + row * 75;
+
+      // 아군 선택 칸의 둥근 배경
+      const slotBg = this.add.graphics();
+
+      // 선택 칸 배경을 그리는 함수
+      const drawSlot = (color) => {
+        slotBg.clear();
+        slotBg.fillStyle(color, 1);
+        slotBg.fillRoundedRect(
+          x - 45,
+          y - 32.5,
+          90,
+          65,
+          12
+        );
+      };
+
+      // 기본 차콜 색상
+      drawSlot(0x30383B);
+
+      slotBg.setDepth(20);
+
+      // 취소하거나 교체할 때 배경도 제거하도록 등록
+      this.replaceButtons.push(slotBg);
+
+      const monsterLabel =
+        this.allies[i].monsterType === 'ranged'
+          ? '원거리형'
+          : '근접형';
+
+      const button = this.add.text(
+        x,
+        y,
+        monsterLabel,
+        {
+          fontSize: '13px',
+          color: '#ffffff',
+          fixedWidth: 90,
+          fixedHeight: 65,
+          align: 'center',
+          padding: { top: 43 },
+        }
+      )
+        .setOrigin(0.5)
+        .setDepth(21)
+        .setInteractive({ useHandCursor: true });
+
+      this.replaceButtons.push(button);
+
+      // 마우스를 올리면 살짝 밝아짐
+      button.on('pointerover', () => {
+        drawSlot(0x465256);
+      });
+
+      // 마우스를 벗어나면 원래 색으로 돌아옴
+      button.on('pointerout', () => {
+        drawSlot(0x30383B);
+      });
+
+      button.on('pointerdown', () => {
+        // 1. 교체할 아군 제거
+        const oldAlly = this.allies[i];
+
+        oldAlly.destroy();
+        this.allies.splice(i, 1);
+
+        // 2. 새로 포획한 몬스터 정보 저장
+        const candidate = this.selectedCaptureCandidate;
+
+        const x = candidate.x;
+        const y = candidate.y;
+        const monsterType = candidate.monsterType;
+
+        // 3. 포획 후보 제거
+        candidate.destroy();
+
+        this.captureCandidates = this.captureCandidates.filter(
+          item => item !== candidate
+        );
+
+        // 4. 새 아군 합류
+        this.spawnAlly(x, y, monsterType);
+
+        // 5. 교체 창 닫기 및 교체 모드 종료
+        this.closeReplaceUI();
+
+        console.log('아군 교체 완료!');
+      });
+
+      // 선택 칸에 현재 아군의 모습 표시
+      const ally = this.allies[i];
+
+      const previewColor =
+        ally.monsterType === 'ranged'
+          ? 0x60a5fa
+          : 0x6ee7b7;
+
+      const preview = this.add.circle(
+        x,
+        y - 8,
+        12,
+        previewColor
+      ).setDepth(22);
+
+      // 나중에 창을 닫을 때 함께 제거하기
+      this.replaceButtons.push(preview);
+    }
+
+    // 교체 취소 버튼
+    this.cancelButton = this.add.text(
+      400, 390,
+      'Cancel',
+      {
+        fontSize: '24px',
+        color: '#ffffff',
+        backgroundColor: '#b45353',
+        padding: { x: 20, y: 10 },
+      }
+    )
+      .setOrigin(0.5)
+      .setDepth(21)
+      .setInteractive({ useHandCursor: true });
+
+    // Cancel 버튼을 클릭하면 교체 창 닫기
+    this.cancelButton.on('pointerdown', () => {
+      // 포획 후보 제거
+      const candidate = this.selectedCaptureCandidate;
+
+      candidate.destroy();
+
+      this.captureCandidates = this.captureCandidates.filter(
+        item => item !== candidate
+      );
+
+      // 교체 창 닫기 + 타이머 재개
+      this.closeReplaceUI();
+
+      console.log('아군 교체 취소!');
+    });
+  }
+
+  closeReplaceUI() {
+    this.replacePanel.destroy();
+    this.replaceText.destroy();
+    this.cancelButton.destroy();
+
+    this.replaceButtons.forEach(item => item.destroy());
+    this.replaceButtons = [];
+
+    this.selectedCaptureCandidate = null;
+    this.isReplacingAlly = false;
+    this.time.paused = false; // 게임 타이머 다시 시작
+  }
+
   spawnAlly(x, y, monsterType) {
     if (this.allies.length >= 10) return;
 
@@ -814,6 +1034,14 @@ class GameScene extends Phaser.Scene {
     this.time.delayedCall(10000, () => {
       if (!candidate.active) return;
 
+      // 교체 중인 포획 후보는 사라지지 않도록 보호
+      if (
+        this.isReplacingAlly &&
+        candidate === this.selectedCaptureCandidate
+      ) {
+        return;
+      }
+
       candidate.destroy();
 
       this.captureCandidates =
@@ -856,9 +1084,11 @@ class GameScene extends Phaser.Scene {
         this.spawnCaptureCandidate(deadX, deadY, deadMonsterType);
       }
 
-      // 2초 후 적 재생성
-      this.time.delayedCall(2000, () => {
-        this.spawnEnemy();
+      // 3초 후 적 재생성
+      this.time.delayedCall(3000, () => {
+        if (!this.isGameOver && !this.isReplacingAlly) {
+          this.spawnEnemy();
+        }
       });
     } else {
       // 피격 효과
