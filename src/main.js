@@ -124,7 +124,7 @@ class GameScene extends Phaser.Scene {
         this.captureCandidates.splice(i, 1);
 
         // 아군으로 합류
-        this.spawnAlly(x, y);
+        this.spawnAlly(x, y, candidate.monsterType);
       }
     }
 
@@ -463,8 +463,12 @@ class GameScene extends Phaser.Scene {
         if (enemyDistance <= 180) {
           isFighting = true;
 
-          // 적과 거리가 28px보다 멀면 접근
-          if (enemyDistance > 28) {
+          // 아군 종류에 따라 적과 유지할 거리 설정
+          const targetDistance =
+            ally.monsterType === 'ranged' ? 120 : 28;
+
+          // 목표 거리보다 멀면 적에게 접근
+          if (enemyDistance > targetDistance) {
             const attackDirection = new Phaser.Math.Vector2(
               targetEnemy.x - ally.x,
               targetEnemy.y - ally.y
@@ -472,7 +476,7 @@ class GameScene extends Phaser.Scene {
 
             const moveDistance = Math.min(
               170 * dt,
-              enemyDistance - 28
+              enemyDistance - targetDistance
             );
 
             ally.x += attackDirection.x * moveDistance;
@@ -487,9 +491,13 @@ class GameScene extends Phaser.Scene {
             targetEnemy.y
           );
 
-          // 공격 거리 안이면 0.8초마다 반복 공격
+          // 아군 종류에 따라 공격 가능 거리 설정
+          const attackRange =
+            ally.monsterType === 'ranged' ? 150 : 30;
+
+          // 공격 거리 안이면 0.8초마다 공격
           if (
-            newDistance <= 30 &&
+            newDistance <= attackRange &&
             time - ally.lastAttackTime >= 800
           ) {
             ally.lastAttackTime = time;
@@ -499,12 +507,41 @@ class GameScene extends Phaser.Scene {
 
             this.time.delayedCall(250, () => {
               if (ally.active) {
-                ally.setFillStyle(0x6ee7b7);
+                ally.setFillStyle(
+                  ally.monsterType === 'ranged'
+                    ? 0x60a5fa
+                    : 0x6ee7b7
+                );
               }
             });
 
-            // 선택한 적에게 피해 1
-            this.damageEnemy(1, targetEnemy);
+            if (ally.monsterType === 'ranged') {
+              // 원거리형: 적을 향해 마법탄 발사
+              const angle = Phaser.Math.Angle.Between(
+                ally.x,
+                ally.y,
+                targetEnemy.x,
+                targetEnemy.y
+              );
+
+              const bullet = this.add.circle(
+                ally.x,
+                ally.y,
+                5,
+                0x93c5fd
+              );
+
+              bullet.vx = Math.cos(angle);
+              bullet.vy = Math.sin(angle);
+
+              // 아군이 발사한 탄환임을 기록
+              bullet.isAllyBullet = true;
+
+              this.bullets.push(bullet);
+            } else {
+              // 근접형: 기존처럼 직접 피해
+              this.damageEnemy(1, targetEnemy);
+            }
           }
         }
       }
@@ -723,7 +760,7 @@ class GameScene extends Phaser.Scene {
   // 8. 아군 생성
   // ─────────────────────
 
-  spawnAlly(x, y) {
+  spawnAlly(x, y, monsterType) {
     if (this.allies.length >= 10) return;
 
     const ally = this.add.circle(
@@ -732,6 +769,16 @@ class GameScene extends Phaser.Scene {
       13,
       0x6ee7b7
     );
+
+    // 포획한 몬스터의 종류 저장
+    ally.monsterType = monsterType;
+
+    // 아군 종류에 따라 색상 구분
+    if (ally.monsterType === 'ranged') {
+      ally.setFillStyle(0x60a5fa); // 원거리형 아군: 파란색
+    } else {
+      ally.setFillStyle(0x6ee7b7); // 근접형 아군: 초록색
+    }
 
     // 아군별 공격 시간 기록
     ally.lastAttackTime = 0;
@@ -747,7 +794,7 @@ class GameScene extends Phaser.Scene {
   // 포획 후보 생성
   // ─────────────────────
 
-  spawnCaptureCandidate(x, y) {
+  spawnCaptureCandidate(x, y, monsterType) {
     // 포획 가능한 몬스터를 노란색 원으로 표시
     const candidate = this.add.circle(
       x,
@@ -758,6 +805,8 @@ class GameScene extends Phaser.Scene {
 
     // 적이나 아군과 구분하기 위한 테두리
     candidate.setStrokeStyle(3, 0xffffff);
+
+    candidate.monsterType = monsterType;
 
     this.captureCandidates.push(candidate);
 
@@ -790,6 +839,9 @@ class GameScene extends Phaser.Scene {
       const deadX = hitEnemy.x;
       const deadY = hitEnemy.y;
 
+      // 처치한 몬스터의 종류 저장
+      const deadMonsterType = hitEnemy.monsterType;
+
       hitEnemy.destroy();
 
       // 처치된 적을 배열에서 제거
@@ -801,7 +853,7 @@ class GameScene extends Phaser.Scene {
 
       // 50% 확률로 포획 후보 등장
       if (Math.random() < 0.5) {
-        this.spawnCaptureCandidate(deadX, deadY);
+        this.spawnCaptureCandidate(deadX, deadY, deadMonsterType);
       }
 
       // 2초 후 적 재생성
