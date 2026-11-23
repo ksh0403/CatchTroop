@@ -40,6 +40,9 @@ class GameScene extends Phaser.Scene {
     // 아군
     this.allies = [];
 
+    // 포획 후보
+    this.captureCandidates = [];
+
     // 적
     this.enemy = null;
     this.enemies = [];
@@ -91,6 +94,36 @@ class GameScene extends Phaser.Scene {
     }
 
     const dt = delta / 1000;
+
+    // ─────────────────────
+    // 포획 후보 영입
+    // ─────────────────────
+
+    for (let i = this.captureCandidates.length - 1; i >= 0; i--) {
+      const candidate = this.captureCandidates[i];
+
+      if (!candidate.active) continue;
+
+      const distance = Phaser.Math.Distance.Between(
+        this.player.x,
+        this.player.y,
+        candidate.x,
+        candidate.y
+      );
+
+      // 플레이어가 가까이 왔고, 아군 자리가 남아 있다면 영입
+      if (distance <= 35 && this.allies.length < 10) {
+        const x = candidate.x;
+        const y = candidate.y;
+
+        // 포획 후보 제거
+        candidate.destroy();
+        this.captureCandidates.splice(i, 1);
+
+        // 아군으로 합류
+        this.spawnAlly(x, y);
+      }
+    }
 
     // ─────────────────────
     // 1. 플레이어 이동
@@ -600,6 +633,37 @@ class GameScene extends Phaser.Scene {
   }
 
   // ─────────────────────
+  // 포획 후보 생성
+  // ─────────────────────
+
+  spawnCaptureCandidate(x, y) {
+    // 포획 가능한 몬스터를 노란색 원으로 표시
+    const candidate = this.add.circle(
+      x,
+      y,
+      15,
+      0xffd166
+    );
+
+    // 적이나 아군과 구분하기 위한 테두리
+    candidate.setStrokeStyle(3, 0xffffff);
+
+    this.captureCandidates.push(candidate);
+
+    // 10초 후 포획 후보 소멸
+    this.time.delayedCall(10000, () => {
+      if (!candidate.active) return;
+
+      candidate.destroy();
+
+      this.captureCandidates =
+        this.captureCandidates.filter(
+          item => item !== candidate
+        );
+    });
+  }
+
+  // ─────────────────────
   // 9. 적 피해 및 사망 처리
   // ─────────────────────
 
@@ -624,9 +688,9 @@ class GameScene extends Phaser.Scene {
 
       this.enemy = null;
 
-      // 50% 확률로 아군 전환
+      // 50% 확률로 포획 후보 등장
       if (Math.random() < 0.5) {
-        this.spawnAlly(deadX, deadY);
+        this.spawnCaptureCandidate(deadX, deadY);
       }
 
       // 2초 후 적 재생성
