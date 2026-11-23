@@ -802,7 +802,7 @@ class GameScene extends Phaser.Scene {
   showReplaceUI() {
     // 교체 창 배경
     this.replacePanel = this.add.rectangle(
-      400, 300, 640, 300, 0x172a23
+      400, 300, 680, 320, 0x172a23
     ).setStrokeStyle(3, 0xffffff).setDepth(20);
 
     // 안내 문구
@@ -819,13 +819,46 @@ class GameScene extends Phaser.Scene {
     // 아군 선택 버튼을 저장할 배열
     this.replaceButtons = [];
 
+    // 새로 포획한 몬스터 정보
+    const candidate = this.selectedCaptureCandidate;
+
+    const candidateType =
+      candidate.monsterType === 'ranged'
+        ? '원거리형'
+        : '근접형';
+
+    this.captureInfoText = this.add.text(
+      145,
+      240,
+      `NEW CAPTURE\n${candidateType}`,
+      {
+        fontSize: '15px',
+        color: '#facc15',
+        align: 'center',
+        lineSpacing: 8
+      }
+    ).setOrigin(0.5).setDepth(22);
+
+    // 새로 포획한 몬스터의 미리보기
+    const captureColor =
+      candidate.monsterType === 'ranged'
+        ? 0x60a5fa
+        : 0x6ee7b7;
+
+    this.capturePreview = this.add.circle(
+      145,  // X: NEW CAPTURE와 같은 위치
+      300,  // Y: 미리보기 위치
+      32,   // 원의 반지름
+      captureColor
+    ).setDepth(22);
+
     // 아군 10마리를 5개씩 2줄로 배치
     for (let i = 0; i < this.allies.length; i++) {
       const col = i % 5;
       const row = Math.floor(i / 5);
 
-      const x = 200 + col * 100;
-      const y = 240 + row * 75;
+      const x = 260 + col * 100;
+      const y = 250 + row * 75;
 
       // 아군 선택 칸의 둥근 배경
       const slotBg = this.add.graphics();
@@ -909,6 +942,10 @@ class GameScene extends Phaser.Scene {
         // 4. 새 아군 합류
         this.spawnAlly(x, y, monsterType);
 
+        // 새 아군을 원래 선택한 칸으로 이동
+        const newAlly = this.allies.pop();
+        this.allies.splice(i, 0, newAlly);
+
         // 5. 교체 창 닫기 및 교체 모드 종료
         this.closeReplaceUI();
 
@@ -936,7 +973,7 @@ class GameScene extends Phaser.Scene {
 
     // 교체 취소 버튼
     this.cancelButton = this.add.text(
-      400, 390,
+      400, 405,
       'Cancel',
       {
         fontSize: '24px',
@@ -970,6 +1007,8 @@ class GameScene extends Phaser.Scene {
   closeReplaceUI() {
     this.replacePanel.destroy();
     this.replaceText.destroy();
+    this.captureInfoText.destroy();
+    this.capturePreview.destroy();
     this.cancelButton.destroy();
 
     this.replaceButtons.forEach(item => item.destroy());
