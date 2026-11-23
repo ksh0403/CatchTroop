@@ -26,6 +26,11 @@ class GameScene extends Phaser.Scene {
       Phaser.Input.Keyboard.KeyCodes.R
     );
 
+    // 개발용 테스트 키: T
+    this.testKey = this.input.keyboard.addKey(
+      Phaser.Input.Keyboard.KeyCodes.T
+    );
+
     this.wasd = this.input.keyboard.addKeys({
       up: Phaser.Input.Keyboard.KeyCodes.W,
       down: Phaser.Input.Keyboard.KeyCodes.S,
@@ -37,19 +42,28 @@ class GameScene extends Phaser.Scene {
     this.bullets = [];
     this.lastAttackTime = 0;
 
+    // 적이 발사하는 투사체
+    this.enemyBullets = [];
+
     // 아군
     this.allies = [];
+
+    // 아군 교체 창이 열려 있는지 확인
+    this.isReplacingAlly = false;
+
+    // 포획 후보
+    this.captureCandidates = [];
 
     // 적
     this.enemy = null;
     this.enemies = [];
     this.spawnEnemy();
 
-    // 3초마다 새로운 적 생성
+    // 5초마다 새로운 적 생성
     this.time.addEvent({
-      delay: 3000,
+      delay: 5000,
       callback: () => {
-        if (!this.isGameOver) {
+        if (!this.isGameOver && !this.isReplacingAlly) {
           this.spawnEnemy();
         }
       },
@@ -81,6 +95,11 @@ class GameScene extends Phaser.Scene {
   }
 
   update(time, delta) {
+    // 아군 교체 창이 열려 있으면 게임 진행 중단
+    if (this.isReplacingAlly) {
+      return;
+    }
+
     if (this.isGameOver) {
       // R 키를 누르면 게임 처음부터 다시 시작
       if (Phaser.Input.Keyboard.JustDown(this.restartKey)) {
@@ -91,6 +110,61 @@ class GameScene extends Phaser.Scene {
     }
 
     const dt = delta / 1000;
+
+    // 개발용 테스트: T 키를 누르면 아군 10마리 채우기
+    if (Phaser.Input.Keyboard.JustDown(this.testKey)) {
+      while (this.allies.length < 10) {
+        const monsterType = Math.random() < 0.5
+          ? 'melee'
+          : 'ranged';
+
+        this.spawnAlly(
+          this.player.x,
+          this.player.y,
+          monsterType
+        );
+      }
+
+      console.log('테스트용 아군 10마리 생성 완료!');
+    }
+
+    // ─────────────────────
+    // 포획 후보 영입
+    // ─────────────────────
+
+    for (let i = this.captureCandidates.length - 1; i >= 0; i--) {
+      const candidate = this.captureCandidates[i];
+
+      if (!candidate.active) continue;
+
+      const distance = Phaser.Math.Distance.Between(
+        this.player.x,
+        this.player.y,
+        candidate.x,
+        candidate.y
+      );
+
+      if (distance <= 35) {
+        if (this.allies.length < 10) {
+          // 아군 자리가 남아 있으면 바로 영입
+          const x = candidate.x;
+          const y = candidate.y;
+
+          candidate.destroy();
+          this.captureCandidates.splice(i, 1);
+
+          this.spawnAlly(x, y, candidate.monsterType);
+        } else if (!this.isReplacingAlly) {
+          // 아군이 10마리면 교체 모드 시작
+          this.isReplacingAlly = true;
+          this.selectedCaptureCandidate = candidate;
+          this.time.paused = true; // 게임 타이머 일시정지
+
+          console.log('아군 교체 모드 시작!');
+          this.showReplaceUI();
+        }
+      }
+    }
 
     // ─────────────────────
     // 1. 플레이어 이동
@@ -126,16 +200,48 @@ class GameScene extends Phaser.Scene {
 
       const distance = enemyDirection.length();
 
-      if (distance > 30) {
+      // 몬스터 종류에 따라 목표 거리 설정
+      const targetDistance =
+        enemy.monsterType === 'ranged' ? 150 : 30;
+
+      if (distance > targetDistance) {
         enemyDirection.normalize();
 
         const moveDistance = Math.min(
           75 * dt,
-          distance - 30
+          distance - targetDistance
         );
 
         enemy.x += enemyDirection.x * moveDistance;
         enemy.y += enemyDirection.y * moveDistance;
+      }
+
+      // 원거리형 몬스터만 2초마다 탄환 발사
+      if (
+        enemy.monsterType === 'ranged' &&
+        distance <= 250 &&
+        time - enemy.lastAttackTime >= 2000
+      ) {
+        enemy.lastAttackTime = time;
+
+        const angle = Phaser.Math.Angle.Between(
+          enemy.x,
+          enemy.y,
+          this.player.x,
+          this.player.y
+        );
+
+        const bullet = this.add.circle(
+          enemy.x,
+          enemy.y,
+          6,
+          0xffa94d
+        );
+
+        bullet.vx = Math.cos(angle);
+        bullet.vy = Math.sin(angle);
+
+        this.enemyBullets.push(bullet);
       }
     }
 
@@ -206,6 +312,7 @@ class GameScene extends Phaser.Scene {
         // 체력이 0이 되면 게임 종료
         if (this.playerHp <= 0) {
           this.isGameOver = true;
+          this.time.paused = true; // 게임 오버 시 모든 타이머 정지
 
           this.add.text(400, 300, 'GAME OVER', {
             fontSize: '64px',
@@ -230,7 +337,70 @@ class GameScene extends Phaser.Scene {
       }
     }
 
+    // ─────────────────────
+    // 적 원거리 탄환 이동
+    // ─────────────────────
 
+    for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
+      const bullet = this.enemyBullets[i];
+
+      // 탄환 이동
+      bullet.x += bullet.vx * 180 * dt;
+      bullet.y += bullet.vy * 180 * dt;
+
+      // 플레이어와 탄환 충돌 확인
+      const distanceToPlayer = Phaser.Math.Distance.Between(
+        bullet.x,
+        bullet.y,
+        this.player.x,
+        this.player.y
+      );
+
+      // 탄환에 맞았고, 마지막 피격 이후 1초가 지났다면
+      if (
+        distanceToPlayer <= 26 &&
+        time - this.lastPlayerHitTime >= 1000
+      ) {
+        this.lastPlayerHitTime = time;
+
+        // 플레이어 체력 감소
+        this.playerHp -= 1;
+
+        this.hpText.setText(
+          'HP: ' + '❤️'.repeat(this.playerHp)
+        );
+
+        // 탄환 제거
+        bullet.destroy();
+        this.enemyBullets.splice(i, 1);
+
+        // 체력이 0이면 게임 오버
+        if (this.playerHp <= 0) {
+          this.isGameOver = true;
+
+          this.add.text(400, 300, 'GAME OVER', {
+            fontSize: '64px',
+            color: '#ff6b6b',
+            fontStyle: 'bold',
+            stroke: '#000000',
+            strokeThickness: 5,
+          }).setOrigin(0.5).setDepth(10);
+        }
+
+        continue;
+      }
+
+      // 화면 밖으로 나가면 제거
+      if (
+        bullet.x < 0 ||
+        bullet.x > 800 ||
+        bullet.y < 0 ||
+        bullet.y > 600
+      ) {
+        bullet.destroy();
+        this.enemyBullets.splice(i, 1);
+      }
+    }
 
     // ─────────────────────
     // 3. 플레이어 자동 공격
@@ -332,8 +502,12 @@ class GameScene extends Phaser.Scene {
         if (enemyDistance <= 180) {
           isFighting = true;
 
-          // 적과 거리가 28px보다 멀면 접근
-          if (enemyDistance > 28) {
+          // 아군 종류에 따라 적과 유지할 거리 설정
+          const targetDistance =
+            ally.monsterType === 'ranged' ? 120 : 28;
+
+          // 목표 거리보다 멀면 적에게 접근
+          if (enemyDistance > targetDistance) {
             const attackDirection = new Phaser.Math.Vector2(
               targetEnemy.x - ally.x,
               targetEnemy.y - ally.y
@@ -341,7 +515,7 @@ class GameScene extends Phaser.Scene {
 
             const moveDistance = Math.min(
               170 * dt,
-              enemyDistance - 28
+              enemyDistance - targetDistance
             );
 
             ally.x += attackDirection.x * moveDistance;
@@ -356,9 +530,13 @@ class GameScene extends Phaser.Scene {
             targetEnemy.y
           );
 
-          // 공격 거리 안이면 0.8초마다 반복 공격
+          // 아군 종류에 따라 공격 가능 거리 설정
+          const attackRange =
+            ally.monsterType === 'ranged' ? 150 : 30;
+
+          // 공격 거리 안이면 0.8초마다 공격
           if (
-            newDistance <= 30 &&
+            newDistance <= attackRange &&
             time - ally.lastAttackTime >= 800
           ) {
             ally.lastAttackTime = time;
@@ -368,12 +546,41 @@ class GameScene extends Phaser.Scene {
 
             this.time.delayedCall(250, () => {
               if (ally.active) {
-                ally.setFillStyle(0x6ee7b7);
+                ally.setFillStyle(
+                  ally.monsterType === 'ranged'
+                    ? 0x60a5fa
+                    : 0x6ee7b7
+                );
               }
             });
 
-            // 선택한 적에게 피해 1
-            this.damageEnemy(1, targetEnemy);
+            if (ally.monsterType === 'ranged') {
+              // 원거리형: 적을 향해 마법탄 발사
+              const angle = Phaser.Math.Angle.Between(
+                ally.x,
+                ally.y,
+                targetEnemy.x,
+                targetEnemy.y
+              );
+
+              const bullet = this.add.circle(
+                ally.x,
+                ally.y,
+                5,
+                0x93c5fd
+              );
+
+              bullet.vx = Math.cos(angle);
+              bullet.vy = Math.sin(angle);
+
+              // 아군이 발사한 탄환임을 기록
+              bullet.isAllyBullet = true;
+
+              this.bullets.push(bullet);
+            } else {
+              // 근접형: 기존처럼 직접 피해
+              this.damageEnemy(1, targetEnemy);
+            }
           }
         }
       }
@@ -568,6 +775,19 @@ class GameScene extends Phaser.Scene {
     );
 
     enemy.hp = 8;
+    enemy.lastAttackTime = 0;
+
+    // 몬스터 종류: 근접형 또는 원거리형
+    enemy.monsterType = Math.random() < 0.5
+      ? 'melee'
+      : 'ranged';
+
+    // 몬스터 종류에 따라 색상 구분
+    if (enemy.monsterType === 'melee') {
+      enemy.setFillStyle(0xff6b6b); // 근접형: 빨간색
+    } else {
+      enemy.setFillStyle(0xb388ff); // 원거리형: 보라색
+    }
 
     this.enemies.push(enemy);
 
@@ -579,7 +799,227 @@ class GameScene extends Phaser.Scene {
   // 8. 아군 생성
   // ─────────────────────
 
-  spawnAlly(x, y) {
+  showReplaceUI() {
+    // 교체 창 배경
+    this.replacePanel = this.add.rectangle(
+      400, 300, 680, 320, 0x172a23
+    ).setStrokeStyle(3, 0xffffff).setDepth(20);
+
+    // 안내 문구
+    this.replaceText = this.add.text(
+      400, 180,
+      'Troop Full! Choose an ally to replace.',
+      {
+        fontSize: '22px',
+        color: '#ffffff',
+        fontStyle: 'bold',
+      }
+    ).setOrigin(0.5).setDepth(21);
+
+    // 아군 선택 버튼을 저장할 배열
+    this.replaceButtons = [];
+
+    // 새로 포획한 몬스터 정보
+    const candidate = this.selectedCaptureCandidate;
+
+    const candidateType =
+      candidate.monsterType === 'ranged'
+        ? '원거리형'
+        : '근접형';
+
+    this.captureInfoText = this.add.text(
+      145,
+      240,
+      `NEW CAPTURE\n${candidateType}`,
+      {
+        fontSize: '15px',
+        color: '#facc15',
+        align: 'center',
+        lineSpacing: 8
+      }
+    ).setOrigin(0.5).setDepth(22);
+
+    // 새로 포획한 몬스터의 미리보기
+    const captureColor =
+      candidate.monsterType === 'ranged'
+        ? 0x60a5fa
+        : 0x6ee7b7;
+
+    this.capturePreview = this.add.circle(
+      145,  // X: NEW CAPTURE와 같은 위치
+      300,  // Y: 미리보기 위치
+      32,   // 원의 반지름
+      captureColor
+    ).setDepth(22);
+
+    // 아군 10마리를 5개씩 2줄로 배치
+    for (let i = 0; i < this.allies.length; i++) {
+      const col = i % 5;
+      const row = Math.floor(i / 5);
+
+      const x = 260 + col * 100;
+      const y = 250 + row * 75;
+
+      // 아군 선택 칸의 둥근 배경
+      const slotBg = this.add.graphics();
+
+      // 선택 칸 배경을 그리는 함수
+      const drawSlot = (color) => {
+        slotBg.clear();
+        slotBg.fillStyle(color, 1);
+        slotBg.fillRoundedRect(
+          x - 45,
+          y - 32.5,
+          90,
+          65,
+          12
+        );
+      };
+
+      // 기본 차콜 색상
+      drawSlot(0x30383B);
+
+      slotBg.setDepth(20);
+
+      // 취소하거나 교체할 때 배경도 제거하도록 등록
+      this.replaceButtons.push(slotBg);
+
+      const monsterLabel =
+        this.allies[i].monsterType === 'ranged'
+          ? '원거리형'
+          : '근접형';
+
+      const button = this.add.text(
+        x,
+        y,
+        monsterLabel,
+        {
+          fontSize: '13px',
+          color: '#ffffff',
+          fixedWidth: 90,
+          fixedHeight: 65,
+          align: 'center',
+          padding: { top: 43 },
+        }
+      )
+        .setOrigin(0.5)
+        .setDepth(21)
+        .setInteractive({ useHandCursor: true });
+
+      this.replaceButtons.push(button);
+
+      // 마우스를 올리면 살짝 밝아짐
+      button.on('pointerover', () => {
+        drawSlot(0x465256);
+      });
+
+      // 마우스를 벗어나면 원래 색으로 돌아옴
+      button.on('pointerout', () => {
+        drawSlot(0x30383B);
+      });
+
+      button.on('pointerdown', () => {
+        // 1. 교체할 아군 제거
+        const oldAlly = this.allies[i];
+
+        oldAlly.destroy();
+        this.allies.splice(i, 1);
+
+        // 2. 새로 포획한 몬스터 정보 저장
+        const candidate = this.selectedCaptureCandidate;
+
+        const x = candidate.x;
+        const y = candidate.y;
+        const monsterType = candidate.monsterType;
+
+        // 3. 포획 후보 제거
+        candidate.destroy();
+
+        this.captureCandidates = this.captureCandidates.filter(
+          item => item !== candidate
+        );
+
+        // 4. 새 아군 합류
+        this.spawnAlly(x, y, monsterType);
+
+        // 새 아군을 원래 선택한 칸으로 이동
+        const newAlly = this.allies.pop();
+        this.allies.splice(i, 0, newAlly);
+
+        // 5. 교체 창 닫기 및 교체 모드 종료
+        this.closeReplaceUI();
+
+        console.log('아군 교체 완료!');
+      });
+
+      // 선택 칸에 현재 아군의 모습 표시
+      const ally = this.allies[i];
+
+      const previewColor =
+        ally.monsterType === 'ranged'
+          ? 0x60a5fa
+          : 0x6ee7b7;
+
+      const preview = this.add.circle(
+        x,
+        y - 8,
+        12,
+        previewColor
+      ).setDepth(22);
+
+      // 나중에 창을 닫을 때 함께 제거하기
+      this.replaceButtons.push(preview);
+    }
+
+    // 교체 취소 버튼
+    this.cancelButton = this.add.text(
+      400, 405,
+      'Cancel',
+      {
+        fontSize: '24px',
+        color: '#ffffff',
+        backgroundColor: '#b45353',
+        padding: { x: 20, y: 10 },
+      }
+    )
+      .setOrigin(0.5)
+      .setDepth(21)
+      .setInteractive({ useHandCursor: true });
+
+    // Cancel 버튼을 클릭하면 교체 창 닫기
+    this.cancelButton.on('pointerdown', () => {
+      // 포획 후보 제거
+      const candidate = this.selectedCaptureCandidate;
+
+      candidate.destroy();
+
+      this.captureCandidates = this.captureCandidates.filter(
+        item => item !== candidate
+      );
+
+      // 교체 창 닫기 + 타이머 재개
+      this.closeReplaceUI();
+
+      console.log('아군 교체 취소!');
+    });
+  }
+
+  closeReplaceUI() {
+    this.replacePanel.destroy();
+    this.replaceText.destroy();
+    this.captureInfoText.destroy();
+    this.capturePreview.destroy();
+    this.cancelButton.destroy();
+
+    this.replaceButtons.forEach(item => item.destroy());
+    this.replaceButtons = [];
+
+    this.selectedCaptureCandidate = null;
+    this.isReplacingAlly = false;
+    this.time.paused = false; // 게임 타이머 다시 시작
+  }
+
+  spawnAlly(x, y, monsterType) {
     if (this.allies.length >= 10) return;
 
     const ally = this.add.circle(
@@ -589,6 +1029,16 @@ class GameScene extends Phaser.Scene {
       0x6ee7b7
     );
 
+    // 포획한 몬스터의 종류 저장
+    ally.monsterType = monsterType;
+
+    // 아군 종류에 따라 색상 구분
+    if (ally.monsterType === 'ranged') {
+      ally.setFillStyle(0x60a5fa); // 원거리형 아군: 파란색
+    } else {
+      ally.setFillStyle(0x6ee7b7); // 근접형 아군: 초록색
+    }
+
     // 아군별 공격 시간 기록
     ally.lastAttackTime = 0;
 
@@ -597,6 +1047,47 @@ class GameScene extends Phaser.Scene {
     this.allyText.setText(
       `Allies: ${this.allies.length} / 10`
     );
+  }
+
+  // ─────────────────────
+  // 포획 후보 생성
+  // ─────────────────────
+
+  spawnCaptureCandidate(x, y, monsterType) {
+    // 포획 가능한 몬스터를 노란색 원으로 표시
+    const candidate = this.add.circle(
+      x,
+      y,
+      15,
+      0xffd166
+    );
+
+    // 적이나 아군과 구분하기 위한 테두리
+    candidate.setStrokeStyle(3, 0xffffff);
+
+    candidate.monsterType = monsterType;
+
+    this.captureCandidates.push(candidate);
+
+    // 10초 후 포획 후보 소멸
+    this.time.delayedCall(10000, () => {
+      if (!candidate.active) return;
+
+      // 교체 중인 포획 후보는 사라지지 않도록 보호
+      if (
+        this.isReplacingAlly &&
+        candidate === this.selectedCaptureCandidate
+      ) {
+        return;
+      }
+
+      candidate.destroy();
+
+      this.captureCandidates =
+        this.captureCandidates.filter(
+          item => item !== candidate
+        );
+    });
   }
 
   // ─────────────────────
@@ -615,6 +1106,9 @@ class GameScene extends Phaser.Scene {
       const deadX = hitEnemy.x;
       const deadY = hitEnemy.y;
 
+      // 처치한 몬스터의 종류 저장
+      const deadMonsterType = hitEnemy.monsterType;
+
       hitEnemy.destroy();
 
       // 처치된 적을 배열에서 제거
@@ -624,14 +1118,16 @@ class GameScene extends Phaser.Scene {
 
       this.enemy = null;
 
-      // 50% 확률로 아군 전환
+      // 50% 확률로 포획 후보 등장
       if (Math.random() < 0.5) {
-        this.spawnAlly(deadX, deadY);
+        this.spawnCaptureCandidate(deadX, deadY, deadMonsterType);
       }
 
-      // 2초 후 적 재생성
-      this.time.delayedCall(2000, () => {
-        this.spawnEnemy();
+      // 3초 후 적 재생성
+      this.time.delayedCall(3000, () => {
+        if (!this.isGameOver && !this.isReplacingAlly) {
+          this.spawnEnemy();
+        }
       });
     } else {
       // 피격 효과
@@ -639,7 +1135,11 @@ class GameScene extends Phaser.Scene {
 
       this.time.delayedCall(100, () => {
         if (hitEnemy.active) {
-          hitEnemy.setFillStyle(0xff6b6b);
+          hitEnemy.setFillStyle(
+            hitEnemy.monsterType === 'ranged'
+              ? 0xb388ff
+              : 0xff6b6b
+          );
         }
       });
     }
