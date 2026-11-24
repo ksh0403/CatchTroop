@@ -83,9 +83,11 @@ class TitleScene extends Phaser.Scene {
       // 시작 버튼 보라색 발광 효과
       this.startButton.postFX.addGlow(
         0xc084fc,
-        4,
+        2,
         0,
-        false
+        false,
+        0.1,
+        5
       );
     });
 
@@ -146,6 +148,12 @@ class GameScene extends Phaser.Scene {
 
   // 몬스터 이미지 불러오기
   preload() {
+    // 게임 필드 배경 이미지
+    this.load.image(
+      'field_background',
+      'src/assets/backgrounds/field_background.png'
+    );
+
     // 체력 하트 이미지 불러오기
     this.load.image('heart', 'src/assets/ui/heart.png');
 
@@ -173,6 +181,14 @@ class GameScene extends Phaser.Scene {
     // 게임 화면이 서서히 밝아지는 효과
     this.cameras.main.fadeIn(600, 0, 0, 0);
 
+    // 게임 필드 배경 표시
+    this.fieldBackground = this.add.image(
+      400, 300, 'field_background'
+    );
+
+    this.fieldBackground.setDisplaySize(800, 600);
+    this.fieldBackground.setDepth(-100);
+
     // 배경
     this.cameras.main.setBackgroundColor('#294b3a');
 
@@ -186,7 +202,7 @@ class GameScene extends Phaser.Scene {
       'player'
     );
 
-    this.playerImage.setDisplaySize(72, 60);
+    this.playerImage.setDisplaySize(86, 72);
     this.playerImage.setDepth(3);
 
     // 기존 노란색 원 숨기기
@@ -248,22 +264,19 @@ class GameScene extends Phaser.Scene {
       loop: true,
     });
 
-    // UI
-    this.add.text(400, 60, 'CATCHTROOP', {
-      fontSize: '32px',
-      color: '#ffffff',
-      fontStyle: 'bold',
-    }).setOrigin(0.5);
-
     this.allyText = this.add.text(20, 20, 'Allies: 0 / 10', {
       fontSize: '18px',
       color: '#ffffff',
+      stroke: '#000000',
+      strokeThickness: 3,
     });
 
     // 플레이어 체력 UI
     this.hpText = this.add.text(20, 50, 'HP:', {
       fontSize: '22px',
       color: '#ffffff',
+      stroke: '#000000',
+      strokeThickness: 3,
     });
 
     // 체력 하트 이미지
@@ -278,6 +291,8 @@ class GameScene extends Phaser.Scene {
     this.add.text(400, 550, 'Move: WASD / Arrow Keys', {
       fontSize: '18px',
       color: '#ffffff',
+      stroke: '#000000',
+      strokeThickness: 3,
     }).setOrigin(0.5);
   }
 
@@ -290,6 +305,7 @@ class GameScene extends Phaser.Scene {
     if (this.isGameOver) {
       // R 키를 누르면 게임 처음부터 다시 시작
       if (Phaser.Input.Keyboard.JustDown(this.restartKey)) {
+        this.time.paused = false;
         this.scene.restart();
       }
 
@@ -480,8 +496,11 @@ class GameScene extends Phaser.Scene {
           enemy.x,
           enemy.y,
           6,
-          0xffa94d
+          0xfecaca
         );
+
+        // 적군 마법탄 빨간색 발광 효과
+        bullet.postFX.addGlow(0xff3333, 8, 0, false);
 
         bullet.vx = Math.cos(angle);
         bullet.vy = Math.sin(angle);
@@ -566,6 +585,14 @@ class GameScene extends Phaser.Scene {
             stroke: '#000000',
             strokeThickness: 5,
           }).setOrigin(0.5).setDepth(10);
+
+          // 게임 재시작 안내 문구
+          this.add.text(400, 355, 'Press R to Restart', {
+            fontSize: '18px',
+            color: '#ffffff',
+            stroke: '#000000',
+            strokeThickness: 3,
+          }).setOrigin(0.5).setDepth(10);
         }
 
         // 플레이어 이미지 피격 효과
@@ -638,6 +665,14 @@ class GameScene extends Phaser.Scene {
             fontStyle: 'bold',
             stroke: '#000000',
             strokeThickness: 5,
+          }).setOrigin(0.5).setDepth(10);
+
+          // 게임 재시작 안내 문구
+          this.add.text(400, 355, 'Press R to Restart', {
+            fontSize: '18px',
+            color: '#ffffff',
+            stroke: '#000000',
+            strokeThickness: 3,
           }).setOrigin(0.5).setDepth(10);
         }
 
@@ -812,8 +847,11 @@ class GameScene extends Phaser.Scene {
                 ally.x,
                 ally.y,
                 5,
-                0x93c5fd
+                0xbfdbfe
               );
+
+              // 아군 마법탄 파란색 발광 효과
+              bullet.postFX.addGlow(0x3b82f6, 8, 0, false);
 
               bullet.vx = Math.cos(angle);
               bullet.vy = Math.sin(angle);
@@ -1015,8 +1053,11 @@ class GameScene extends Phaser.Scene {
       this.player.x,
       this.player.y,
       6,
-      0x7dd3fc
+      0xe9d5ff
     );
+
+    // 플레이어 마법탄 보라색 발광 효과
+    bullet.postFX.addGlow(0xa855f7, 8, 0, false);
 
     bullet.vx = Math.cos(angle);
     bullet.vy = Math.sin(angle);
@@ -1103,7 +1144,7 @@ class GameScene extends Phaser.Scene {
         enemy.monsterKey
       );
 
-      enemy.monsterImage.setDisplaySize(40, 40);
+      enemy.monsterImage.setDisplaySize(48, 48);
       enemy.monsterImage.setDepth(2);
 
       // PNG 실루엣을 따라 빨간 외곽 효과
@@ -1125,7 +1166,7 @@ class GameScene extends Phaser.Scene {
         enemy.monsterKey
       );
 
-      enemy.monsterImage.setDisplaySize(40, 40);
+      enemy.monsterImage.setDisplaySize(48, 48);
       enemy.monsterImage.setDepth(2);
 
       // 원거리 적의 빨간색 테두리
@@ -1494,7 +1535,7 @@ class GameScene extends Phaser.Scene {
         ally.monsterKey
       );
 
-      ally.monsterImage.setDisplaySize(40, 40);
+      ally.monsterImage.setDisplaySize(48, 48);
       ally.monsterImage.setDepth(2);
 
       // PNG 모양을 따라 파란색 테두리 표시
@@ -1519,7 +1560,7 @@ class GameScene extends Phaser.Scene {
         ally.monsterKey
       );
 
-      ally.monsterImage.setDisplaySize(40, 40);
+      ally.monsterImage.setDisplaySize(48, 48);
       ally.monsterImage.setDepth(2);
 
       // 아군은 파란색 테두리
@@ -1557,6 +1598,12 @@ class GameScene extends Phaser.Scene {
     // 버블 애니메이션 종료
     this.tweens.killTweensOf(candidate);
 
+    // 버블의 빛 반사 효과 제거
+    if (candidate.reflection) {
+      this.tweens.killTweensOf(candidate.reflection);
+      candidate.reflection.destroy();
+    }
+
     candidate.destroy();
   }
 
@@ -1565,16 +1612,41 @@ class GameScene extends Phaser.Scene {
   // ─────────────────────
 
   spawnCaptureCandidate(x, y, monsterType, monsterKey) {
-    // 포획 후보를 감싸는 반투명 노란색 버블
-    const candidate = this.add.circle(x, y, 28, 0xffdd00, 0.1);
+    /// 포획 후보를 감싸는 투명한 흰색 버블
+    const candidate = this.add.circle(x, y, 34, 0xffffff, 0.05);
 
-    // 버블의 노란색 테두리
-    candidate.setStrokeStyle(2, 0xffdd00, 0.8);
+    // 버블의 흰색 테두리
+    candidate.setStrokeStyle(2, 0xffffff, 0.85);
     candidate.setDepth(1);
+
+    // 버블 표면의 빛 반사 효과
+    candidate.reflection = this.add.graphics();
+
+    candidate.reflection.lineStyle(3, 0xffffff, 0.9);
+    candidate.reflection.beginPath();
+    candidate.reflection.arc(
+      0, 0, 29,
+      Phaser.Math.DegToRad(195),
+      Phaser.Math.DegToRad(255)
+    );
+    candidate.reflection.strokePath();
+
+    // 오른쪽 아래의 작은 빛 반사
+    candidate.reflection.lineStyle(2, 0xffffff, 0.5);
+    candidate.reflection.beginPath();
+    candidate.reflection.arc(
+      0, 0, 23,
+      Phaser.Math.DegToRad(25),
+      Phaser.Math.DegToRad(65)
+    );
+    candidate.reflection.strokePath();
+
+    candidate.reflection.setPosition(x, y);
+    candidate.reflection.setDepth(4);
 
     // 포획 후보 버블 확대·축소 및 밝기 애니메이션
     this.tweens.add({
-      targets: candidate,
+      targets: [candidate, candidate.reflection],
       scaleX: 1.12,
       scaleY: 1.12,
       alpha: { from: 0.6, to: 1 },
@@ -1595,12 +1667,12 @@ class GameScene extends Phaser.Scene {
         candidate.monsterKey
       );
 
-      candidate.monsterImage.setDisplaySize(50, 50);
+      candidate.monsterImage.setDisplaySize(60, 60);
       candidate.monsterImage.setDepth(2);
 
       // 포획 가능한 몬스터는 노란색으로 빛나게 표시
       candidate.monsterImage.postFX.addGlow(
-        0xffdd00,
+        0xffffff,
         5,
         0,
         false,
@@ -1617,12 +1689,12 @@ class GameScene extends Phaser.Scene {
         candidate.monsterKey
       );
 
-      candidate.monsterImage.setDisplaySize(50, 50);
+      candidate.monsterImage.setDisplaySize(60, 60);
       candidate.monsterImage.setDepth(2);
 
       // 포획 후보는 노란색 테두리
       candidate.monsterImage.postFX.addGlow(
-        0xffdd00,
+        0xffffff,
         5,
         0,
         false,
