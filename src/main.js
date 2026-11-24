@@ -39,6 +39,9 @@ class GameScene extends Phaser.Scene {
     // 체력 하트 이미지 불러오기
     this.load.image('heart', 'src/assets/ui/heart.png');
 
+    // 플레이어 이미지 불러오기
+    this.load.image('player', 'src/assets/player/player.png');
+
     // 근접형 몬스터 10종 불러오기
     for (const monster of MELEE_MONSTERS) {
       this.load.image(
@@ -62,6 +65,19 @@ class GameScene extends Phaser.Scene {
 
     // 플레이어
     this.player = this.add.circle(400, 300, 20, 0xffd166);
+
+    // 플레이어 이미지 표시
+    this.playerImage = this.add.image(
+      this.player.x,
+      this.player.y,
+      'player'
+    );
+
+    this.playerImage.setDisplaySize(72, 60);
+    this.playerImage.setDepth(3);
+
+    // 기존 노란색 원 숨기기
+    this.player.setAlpha(0);
 
     // 플레이어 체력
     this.playerMaxHp = 5;
@@ -246,6 +262,16 @@ class GameScene extends Phaser.Scene {
     this.player.x = Phaser.Math.Clamp(this.player.x, 20, 780);
     this.player.y = Phaser.Math.Clamp(this.player.y, 20, 580);
 
+    // 플레이어 이미지가 실제 플레이어 위치를 따라가도록 설정
+    this.playerImage.setPosition(this.player.x, this.player.y);
+
+    // 플레이어 이동 방향에 따라 이미지 좌우 반전
+    if (dx < 0) {
+      this.playerImage.setFlipX(true);
+    } else if (dx > 0) {
+      this.playerImage.setFlipX(false);
+    }
+
     // ─────────────────────
     // 2. 적 몬스터 추적
     // ─────────────────────
@@ -388,12 +414,12 @@ class GameScene extends Phaser.Scene {
           }).setOrigin(0.5).setDepth(10);
         }
 
-        // 피격 효과
-        this.player.setFillStyle(0xff6b6b);
+        // 플레이어 이미지 피격 효과
+        this.playerImage.setTint(0xff6b6b);
 
         this.time.delayedCall(200, () => {
-          if (this.player.active) {
-            this.player.setFillStyle(0xffd166);
+          if (this.playerImage.active) {
+            this.playerImage.clearTint();
           }
         });
 
@@ -434,6 +460,15 @@ class GameScene extends Phaser.Scene {
         // 하트 UI 갱신
         this.hpHearts.forEach((heart, index) => {
           heart.setVisible(index < this.playerHp);
+        });
+
+        // 플레이어 이미지 피격 효과
+        this.playerImage.setTint(0xff6b6b);
+
+        this.time.delayedCall(200, () => {
+          if (this.playerImage.active) {
+            this.playerImage.clearTint();
+          }
         });
 
         // 탄환 제거
