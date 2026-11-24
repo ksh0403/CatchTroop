@@ -36,6 +36,9 @@ class GameScene extends Phaser.Scene {
 
   // 몬스터 이미지 불러오기
   preload() {
+    // 체력 하트 이미지 불러오기
+    this.load.image('heart', 'src/assets/ui/heart.png');
+
     // 근접형 몬스터 10종 불러오기
     for (const monster of MELEE_MONSTERS) {
       this.load.image(
@@ -129,10 +132,19 @@ class GameScene extends Phaser.Scene {
     });
 
     // 플레이어 체력 UI
-    this.hpText = this.add.text(20, 50, 'HP: ❤️❤️❤️❤️❤️', {
+    this.hpText = this.add.text(20, 50, 'HP:', {
       fontSize: '22px',
       color: '#ffffff',
     });
+
+    // 체력 하트 이미지
+    this.hpHearts = [];
+
+    for (let i = 0; i < 5; i++) {
+      const heart = this.add.image(85 + i * 38, 63, 'heart');
+      heart.setDisplaySize(45, 32);
+      this.hpHearts.push(heart);
+    }
 
     this.add.text(400, 550, 'Move: WASD / Arrow Keys', {
       fontSize: '18px',
@@ -358,9 +370,9 @@ class GameScene extends Phaser.Scene {
         this.playerHp -= 1;
 
         // 하트 UI 갱신
-        this.hpText.setText(
-          'HP: ' + '❤️'.repeat(this.playerHp)
-        );
+        this.hpHearts.forEach((heart, index) => {
+          heart.setVisible(index < this.playerHp);
+        });
 
         // 체력이 0이 되면 게임 종료
         if (this.playerHp <= 0) {
@@ -419,9 +431,10 @@ class GameScene extends Phaser.Scene {
         // 플레이어 체력 감소
         this.playerHp -= 1;
 
-        this.hpText.setText(
-          'HP: ' + '❤️'.repeat(this.playerHp)
-        );
+        // 하트 UI 갱신
+        this.hpHearts.forEach((heart, index) => {
+          heart.setVisible(index < this.playerHp);
+        });
 
         // 탄환 제거
         bullet.destroy();
