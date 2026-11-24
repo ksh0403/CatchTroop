@@ -262,8 +262,18 @@ class GameScene extends Phaser.Scene {
     this.player.x = Phaser.Math.Clamp(this.player.x, 20, 780);
     this.player.y = Phaser.Math.Clamp(this.player.y, 20, 580);
 
-    // 플레이어 이미지가 실제 플레이어 위치를 따라가도록 설정
-    this.playerImage.setPosition(this.player.x, this.player.y);
+    // 플레이어 이동 애니메이션
+    let bounce = 0;
+
+    if (dx !== 0 || dy !== 0) {
+      bounce = Math.abs(Math.sin(time * 0.012)) * 3;
+    }
+
+    // 플레이어 이미지 위치 및 통통 튀는 효과
+    this.playerImage.setPosition(
+      this.player.x,
+      this.player.y - bounce
+    );
 
     // 플레이어 이동 방향에 따라 이미지 좌우 반전
     if (dx < 0) {
@@ -302,9 +312,40 @@ class GameScene extends Phaser.Scene {
         enemy.y += enemyDirection.y * moveDistance;
       }
 
-      // 몬스터 이미지가 적의 위치를 따라가도록 설정
+      // 몬스터 이미지 이동 애니메이션
       if (enemy.monsterImage) {
-        enemy.monsterImage.setPosition(enemy.x, enemy.y);
+        let enemyBounce = 0;
+
+        // 근접형 몬스터가 이동할 때 통통 튀는 효과
+        if (
+          enemy.monsterType === 'melee' &&
+          distance > targetDistance
+        ) {
+          enemyBounce = Math.abs(
+            Math.sin(time * 0.015 + enemy.lastAttackTime)
+          ) * 2;
+        }
+
+        // 원거리형 몬스터가 부드럽게 떠다니는 효과
+        if (enemy.monsterType === 'ranged') {
+          enemyBounce = Math.sin(time * 0.005) * 2;
+        }
+
+        enemy.monsterImage.setPosition(
+          enemy.x,
+          enemy.y - enemyBounce
+        );
+
+        // 적 몬스터 이동 방향에 따라 이미지 좌우 반전
+        if (enemy.x < enemy.prevX) {
+          enemy.monsterImage.setFlipX(false);
+        } else if (enemy.x > enemy.prevX) {
+          enemy.monsterImage.setFlipX(true);
+        }
+
+        // 현재 적 몬스터 위치 저장
+        enemy.prevX = enemy.x;
+        enemy.prevY = enemy.y;
       }
 
       // 원거리형 몬스터만 2초마다 탄환 발사
@@ -584,6 +625,10 @@ class GameScene extends Phaser.Scene {
     for (let i = 0; i < this.allies.length; i++) {
       const ally = this.allies[i];
 
+      // 이동 전 아군 위치 저장
+      const oldAllyX = ally.x;
+      const oldAllyY = ally.y;
+
       let isFighting = false;
 
       // 아군에게 가장 가까운 적 찾기
@@ -739,10 +784,53 @@ class GameScene extends Phaser.Scene {
       }
     }
 
-    // 아군 몬스터 이미지가 실제 아군 위치를 따라가도록 설정
+    // 아군 몬스터 이미지 이동 애니메이션
     for (const ally of this.allies) {
       if (ally.active && ally.monsterImage) {
-        ally.monsterImage.setPosition(ally.x, ally.y);
+        let allyBounce = 0;
+
+        // 아군의 실제 이동 여부 확인
+        const isAllyMoving =
+          ally.x !== ally.prevX || ally.y !== ally.prevY;
+
+        // 몬스터별 애니메이션 타이밍 설정
+        if (ally.bounceOffset === undefined) {
+          ally.bounceOffset = Math.random() * Math.PI * 2;
+        }
+
+        // 근접형 아군 이동 효과
+        if (ally.monsterType === 'melee' && isAllyMoving) {
+          allyBounce = Math.abs(
+            Math.sin(time * 0.010 + ally.bounceOffset)
+          ) * 2;
+        }
+
+        // 원거리형 아군 부유 효과
+        if (ally.monsterType === 'ranged') {
+          allyBounce = Math.sin(
+            time * 0.005 + ally.bounceOffset
+          ) * 2;
+        }
+
+        ally.monsterImage.setPosition(
+          ally.x,
+          ally.y - allyBounce
+        );
+
+        // 아군 이동 방향에 따라 이미지 좌우 반전
+        if (ally.x < ally.prevX) {
+          ally.monsterImage.setFlipX(false);
+        } else if (ally.x > ally.prevX) {
+          ally.monsterImage.setFlipX(true);
+        }
+
+        // 현재 위치 저장
+        ally.prevX = ally.x;
+        ally.prevY = ally.y;
+
+        // 현재 위치 저장
+        ally.prevX = ally.x;
+        ally.prevY = ally.y;
       }
     }
 
