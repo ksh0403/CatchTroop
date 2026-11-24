@@ -970,6 +970,47 @@ class GameScene extends Phaser.Scene {
     this.capturePreviewImage.setDisplaySize(100, 100);
     this.capturePreviewImage.setDepth(101);
 
+    // 몬스터 이미지 밝기 효과
+    this.captureFlashFX =
+      this.capturePreviewImage.postFX.addColorMatrix();
+
+    // 새로 포획한 몬스터의 밝기 깜빡임 효과
+    this.captureFlashTween = this.tweens.addCounter({
+      from: 0,
+      to: 1,
+      duration: 100,
+      ease: 'Sine.easeInOut',
+      yoyo: true,
+      repeat: -1,
+
+      onUpdate: (tween) => {
+        const value = tween.getValue();
+
+        this.capturePreviewImage.clearTint();
+        this.capturePreviewImage.setAlpha(1);
+
+        this.captureFlashFX.brightness(
+          1 + value * 0.8
+        );
+
+        // NEW CAPTURE 글씨도 함께 반짝이게 표시
+        const textColor = Phaser.Display.Color.Interpolate.ColorWithColor(
+          Phaser.Display.Color.HexStringToColor('#facc15'),
+          Phaser.Display.Color.HexStringToColor('#fff5b3'),
+          100,
+          value * 100
+        );
+
+        this.captureInfoText.setColor(
+          Phaser.Display.Color.RGBToString(
+            textColor.r,
+            textColor.g,
+            textColor.b
+          )
+        );
+      }
+    });
+
     // 기존 미리보기 원 숨기기
     this.capturePreview.setAlpha(0);
 
@@ -1150,6 +1191,14 @@ class GameScene extends Phaser.Scene {
     this.replaceText.destroy();
     this.captureInfoText.destroy();
     this.capturePreview.destroy();
+
+    // NEW CAPTURE 깜빡임 효과 종료
+    if (this.captureFlashTween) {
+      this.captureFlashTween.remove();
+      this.captureFlashTween = null;
+    }
+
+    this.capturePreviewImage.destroy();
     this.capturePreviewImage.destroy();
     this.cancelButton.destroy();
 
@@ -1199,9 +1248,9 @@ class GameScene extends Phaser.Scene {
       ally.monsterImage.setDisplaySize(40, 40);
       ally.monsterImage.setDepth(2);
 
-      // PNG 모양을 따라 민트색 테두리 표시
+      // PNG 모양을 따라 파란색 테두리 표시
       ally.monsterImage.postFX.addGlow(
-        0x34d399,
+        0x3b82f6,
         4,
         0,
         false,
@@ -1224,9 +1273,9 @@ class GameScene extends Phaser.Scene {
       ally.monsterImage.setDisplaySize(40, 40);
       ally.monsterImage.setDepth(2);
 
-      // 아군은 민트색 테두리
+      // 아군은 파란색 테두리
       ally.monsterImage.postFX.addGlow(
-        0x34d399,
+        0x3b82f6,
         4,
         0,
         false,
@@ -1256,6 +1305,9 @@ class GameScene extends Phaser.Scene {
       candidate.monsterImage.destroy();
     }
 
+    // 버블 애니메이션 종료
+    this.tweens.killTweensOf(candidate);
+
     candidate.destroy();
   }
 
@@ -1264,24 +1316,27 @@ class GameScene extends Phaser.Scene {
   // ─────────────────────
 
   spawnCaptureCandidate(x, y, monsterType, monsterKey) {
-    // 포획 가능한 몬스터를 노란색 원으로 표시
-    const candidate = this.add.circle(
-      x,
-      y,
-      15,
-      0xffd166
-    );
+    // 포획 후보를 감싸는 반투명 노란색 버블
+    const candidate = this.add.circle(x, y, 28, 0xffdd00, 0.1);
 
-    // 적이나 아군과 구분하기 위한 테두리
-    candidate.setStrokeStyle(3, 0xffffff);
+    // 버블의 노란색 테두리
+    candidate.setStrokeStyle(2, 0xffdd00, 0.8);
+    candidate.setDepth(1);
+
+    // 포획 후보 버블 확대·축소 및 밝기 애니메이션
+    this.tweens.add({
+      targets: candidate,
+      scaleX: 1.12,
+      scaleY: 1.12,
+      alpha: { from: 0.6, to: 1 },
+      duration: 700,
+      ease: 'Sine.easeInOut',
+      yoyo: true,
+      repeat: -1
+    });
 
     candidate.monsterType = monsterType;
     candidate.monsterKey = monsterKey;
-
-    // 이미지가 있는 포획 후보는 기존 노란 원 숨기기
-    if (monsterType === 'melee') {
-      candidate.setAlpha(0);
-    }
 
     // 근접형 포획 후보 이미지 표시
     if (monsterType === 'melee') {
@@ -1291,7 +1346,7 @@ class GameScene extends Phaser.Scene {
         candidate.monsterKey
       );
 
-      candidate.monsterImage.setDisplaySize(40, 40);
+      candidate.monsterImage.setDisplaySize(50, 50);
       candidate.monsterImage.setDepth(2);
 
       // 포획 가능한 몬스터는 노란색으로 빛나게 표시
@@ -1313,7 +1368,7 @@ class GameScene extends Phaser.Scene {
         candidate.monsterKey
       );
 
-      candidate.monsterImage.setDisplaySize(40, 40);
+      candidate.monsterImage.setDisplaySize(50, 50);
       candidate.monsterImage.setDepth(2);
 
       // 포획 후보는 노란색 테두리
@@ -1325,9 +1380,6 @@ class GameScene extends Phaser.Scene {
         0.1,
         12
       );
-
-      // 기존 노란색 원 숨기기
-      candidate.setAlpha(0);
     }
 
     this.captureCandidates.push(candidate);
