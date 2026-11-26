@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { createHealthUI } from '../ui/HealthUI.js';
 import { createTroopUI } from '../ui/TroopUI.js';
 import { registerReplaceUIEvents } from '../ui/ReplaceUI.js';
+import { assetPath } from '../utils/assetPath.js';
 
 import {
     GAME,
@@ -49,25 +50,31 @@ export default class GameScene extends Phaser.Scene {
         super('GameScene');
     }
 
-    // 몬스터 이미지 불러오기
+    // 게임 이미지 리소스 불러오기
     preload() {
         // 게임 필드 배경 이미지
         this.load.image(
             'field_background',
-            'src/assets/backgrounds/field_background.png'
+            assetPath('backgrounds/field_background.png')
         );
 
         // 체력 하트 이미지 불러오기
-        this.load.image('heart', 'src/assets/ui/heart.png');
+        this.load.image(
+            'heart',
+            assetPath('ui/heart.png')
+        );
 
         // 플레이어 이미지 불러오기
-        this.load.image('player', 'src/assets/player/player.png');
+        this.load.image(
+            'player',
+            assetPath('player/player.png')
+        );
 
         // 근접형 몬스터 10종 불러오기
         for (const monster of MELEE_MONSTERS) {
             this.load.image(
                 monster,
-                `src/assets/monsters/melee/${monster}.png`
+                assetPath(`monsters/melee/${monster}.png`)
             );
         }
 
@@ -75,11 +82,11 @@ export default class GameScene extends Phaser.Scene {
         for (const monster of RANGED_MONSTERS) {
             this.load.image(
                 monster,
-                `src/assets/monsters/ranged/${monster}.png`
+                assetPath(`monsters/ranged/${monster}.png`)
             );
         }
     }
-
+    
     create() {
         // 게임 화면이 서서히 밝아지는 효과
         this.cameras.main.fadeIn(600, 0, 0, 0);

@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { assetPath } from '../utils/assetPath.js';
 
 // 게임 시작 화면
 export default class TitleScene extends Phaser.Scene {
@@ -7,14 +8,16 @@ export default class TitleScene extends Phaser.Scene {
     }
 
     preload() {
+        // 타이틀 화면 이미지 불러오기
         this.load.image(
             'title_screen',
-            'src/assets/ui/title_screen.png'
+            assetPath('ui/title_screen.png')
         );
-
+    
+        // 시작 버튼 이미지 불러오기
         this.load.image(
             'start_button',
-            'src/assets/ui/start_button.png'
+            assetPath('ui/start_button.png')
         );
     }
 
