@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { ENEMY } from '../config/gameConstants.js';
 
 import {
     MELEE_MONSTERS,
@@ -47,7 +48,7 @@ export function spawnEnemy(scene) {
         0xff6b6b
     );
 
-    enemy.hp = 8;
+    enemy.hp = ENEMY.MAX_HP;
     enemy.lastAttackTime = 0;
 
     // 몬스터 종류 결정
@@ -140,13 +141,13 @@ export function updateEnemies(scene, time, dt) {
 
         // 몬스터 종류에 따라 목표 거리 설정
         const targetDistance =
-            enemy.monsterType === 'ranged' ? 150 : 30;
+            enemy.monsterType === 'ranged' ? ENEMY.RANGED_DISTANCE : ENEMY.MELEE_DISTANCE;
 
         if (distance > targetDistance) {
             enemyDirection.normalize();
 
             const moveDistance = Math.min(
-                75 * dt,
+                ENEMY.MOVE_SPEED * dt,
                 distance - targetDistance
             );
 
@@ -192,8 +193,8 @@ export function updateEnemies(scene, time, dt) {
         // 원거리형 몬스터 공격
         if (
             enemy.monsterType === 'ranged' &&
-            distance <= 250 &&
-            time - enemy.lastAttackTime >= 2000
+            distance <= ENEMY.RANGED_ATTACK_RANGE &&
+            time - enemy.lastAttackTime >= ENEMY.ATTACK_COOLDOWN
         ) {
             enemy.lastAttackTime = time;
 
@@ -224,7 +225,7 @@ export function updateEnemies(scene, time, dt) {
 
 // 적 몬스터 간격 유지
 export function separateEnemies(scene) {
-    const minEnemyDistance = 25;
+    const minEnemyDistance = ENEMY.MIN_DISTANCE;
 
     for (let i = 0; i < scene.enemies.length; i++) {
         for (let j = i + 1; j < scene.enemies.length; j++) {

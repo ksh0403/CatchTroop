@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { updateTroopUI } from '../ui/TroopUI.js';
+import { ALLY } from '../config/gameConstants.js';
 
 import {
     getNearestEnemyTo,
@@ -13,7 +14,7 @@ import {
 
 // 아군 생성
 export function spawnAlly(scene, x, y, monsterType, monsterKey) {
-    if (scene.allies.length >= 10) return;
+    if (scene.allies.length >= ALLY.MAX_COUNT) return;
 
     const ally = scene.add.circle(
         x,
@@ -119,13 +120,13 @@ export function updateAllies(scene, time, dt) {
                 targetEnemy.y
             );
 
-            // 적이 180px 이내면 전투 시작
-            if (enemyDistance <= 180) {
+            // 적이 ALLY.DETECT_RANGE 이내면 전투 시작
+            if (enemyDistance <= ALLY.DETECT_RANGE) {
                 isFighting = true;
 
                 // 아군 종류에 따라 목표 거리 설정
                 const targetDistance =
-                    ally.monsterType === 'ranged' ? 120 : 28;
+                    ally.monsterType === 'ranged' ? ALLY.RANGED_DISTANCE : ALLY.MELEE_DISTANCE;
 
                 // 목표 거리보다 멀면 적에게 접근
                 if (enemyDistance > targetDistance) {
@@ -135,7 +136,7 @@ export function updateAllies(scene, time, dt) {
                     ).normalize();
 
                     const moveDistance = Math.min(
-                        170 * dt,
+                        ALLY.COMBAT_SPEED * dt,
                         enemyDistance - targetDistance
                     );
 
@@ -153,12 +154,12 @@ export function updateAllies(scene, time, dt) {
 
                 // 아군 종류에 따라 공격 가능 거리 설정
                 const attackRange =
-                    ally.monsterType === 'ranged' ? 150 : 30;
+                    ally.monsterType === 'ranged' ? ALLY.RANGED_ATTACK_RANGE : ALLY.MELEE_ATTACK_RANGE;
 
                 // 공격 거리 안이면 0.8초마다 공격
                 if (
                     newDistance <= attackRange &&
-                    time - ally.lastAttackTime >= 800
+                    time - ally.lastAttackTime >= ALLY.ATTACK_COOLDOWN
                 ) {
                     ally.lastAttackTime = time;
 
@@ -192,7 +193,7 @@ export function updateAllies(scene, time, dt) {
                         scene.bullets.push(bullet);
                     } else {
                         // 근접형: 직접 피해
-                        damageEnemy(scene, 1, targetEnemy);
+                        damageEnemy(scene, ALLY.ATTACK_DAMAGE, targetEnemy);
                     }
                 }
             }
@@ -208,10 +209,10 @@ export function updateAllies(scene, time, dt) {
             (Math.PI * 2 * i) / scene.allies.length;
 
         const targetX =
-            scene.player.x + Math.cos(angle) * 80;
+            scene.player.x + Math.cos(angle) * ALLY.FORMATION_RADIUS;
 
         const targetY =
-            scene.player.y + Math.sin(angle) * 80;
+            scene.player.y + Math.sin(angle) * ALLY.FORMATION_RADIUS;
 
         const allyDirection = new Phaser.Math.Vector2(
             targetX - ally.x,
@@ -224,7 +225,7 @@ export function updateAllies(scene, time, dt) {
             allyDirection.normalize();
 
             const moveDistance = Math.min(
-                230 * dt,
+                ALLY.FOLLOW_SPEED * dt,
                 distance
             );
 
@@ -241,8 +242,8 @@ export function separateAllies(scene) {
             const allyA = scene.allies[i];
             const allyB = scene.allies[j];
 
-            // 아군 최소 간격 30px
-            const minAllyDistance = 30;
+            // 아군 최소 간격
+            const minAllyDistance = ALLY.MIN_DISTANCE;
 
             const dx = allyB.x - allyA.x;
             const dy = allyB.y - allyA.y;

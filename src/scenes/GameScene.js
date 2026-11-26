@@ -3,6 +3,12 @@ import { createHealthUI } from '../ui/HealthUI.js';
 import { createTroopUI } from '../ui/TroopUI.js';
 
 import {
+    GAME,
+    ENEMY,
+    ALLY
+} from '../config/gameConstants.js';
+
+import {
     MELEE_MONSTERS,
     RANGED_MONSTERS
 } from '../data/monsterData.js';
@@ -78,10 +84,15 @@ export default class GameScene extends Phaser.Scene {
 
         // 게임 필드 배경 표시
         this.fieldBackground = this.add.image(
-            400, 300, 'field_background'
+            GAME.WIDTH / 2,
+            GAME.HEIGHT / 2,
+            'field_background'
         );
-
-        this.fieldBackground.setDisplaySize(800, 600);
+        
+        this.fieldBackground.setDisplaySize(
+            GAME.WIDTH,
+            GAME.HEIGHT
+        );
         this.fieldBackground.setDepth(-100);
 
         // 배경
@@ -131,7 +142,7 @@ export default class GameScene extends Phaser.Scene {
 
         // 5초마다 새로운 적 생성
         this.time.addEvent({
-            delay: 5000,
+            delay: ENEMY.SPAWN_INTERVAL,
             callback: () => {
                 if (!this.isGameOver && !this.isReplacingAlly) {
                     spawnEnemy(this);
@@ -213,7 +224,7 @@ export default class GameScene extends Phaser.Scene {
     // 개발용 테스트: T 키를 누르면 아군 10마리 채우기
     handleDebugInput() {
         if (Phaser.Input.Keyboard.JustDown(this.testKey)) {
-            while (this.allies.length < 10) {
+            while (this.allies.length < ALLY.MAX_COUNT) {
                 const monsterType = Math.random() < 0.5
                     ? 'melee'
                     : 'ranged';
@@ -226,7 +237,9 @@ export default class GameScene extends Phaser.Scene {
                 );
             }
 
-            console.log('테스트용 아군 10마리 생성 완료!');
+            console.log(
+                `테스트용 아군 ${ALLY.MAX_COUNT}마리 생성 완료!`
+            );
         }
     }
 }

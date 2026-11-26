@@ -2,6 +2,11 @@ import Phaser from 'phaser';
 import { spawnAlly } from '../entities/Ally.js';
 import { showReplaceUI } from '../ui/ReplaceUI.js';
 
+import {
+    CAPTURE,
+    ALLY
+} from '../config/gameConstants.js';
+
 // 포획 후보 영입
 export function updateCaptureCandidates(scene) {
     for (let i = scene.captureCandidates.length - 1; i >= 0; i--) {
@@ -16,8 +21,8 @@ export function updateCaptureCandidates(scene) {
             candidate.y
         );
 
-        if (distance <= 35) {
-            if (scene.allies.length < 10) {
+        if (distance <= CAPTURE.RANGE) {
+            if (scene.allies.length < ALLY.MAX_COUNT) {
                 // 아군 자리가 남아 있으면 바로 영입
                 const x = candidate.x;
                 const y = candidate.y;
@@ -170,8 +175,8 @@ export function spawnCaptureCandidate(
 
     scene.captureCandidates.push(candidate);
 
-    // 10초 후 포획 후보 소멸
-    scene.time.delayedCall(10000, () => {
+    // CAPTURE.DURATION초 후 포획 후보 소멸
+    scene.time.delayedCall(CAPTURE.DURATION, () => {
         // 게임 오버 상태라면 삭제하지 않음
         if (scene.isGameOver) return;
 

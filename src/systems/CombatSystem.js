@@ -4,6 +4,15 @@ import { updateHealthUI } from '../ui/HealthUI.js';
 import { showGameOverUI } from '../ui/GameOverUI.js';
 
 import {
+    GAME,
+    PLAYER,
+    ENEMY,
+    ALLY,
+    CAPTURE,
+    COMBAT
+} from '../config/gameConstants.js';
+
+import {
     spawnCaptureCandidate
 } from './CaptureSystem.js';
 
@@ -20,14 +29,14 @@ export function checkPlayerCollision(scene, time) {
         );
 
         if (
-            distanceToPlayer <= 35 &&
+            distanceToPlayer <= COMBAT.CONTACT_HIT_RANGE &&
             scene.playerHp > 0 &&
-            time - scene.lastPlayerHitTime >= 1000
+            time - scene.lastPlayerHitTime >= PLAYER.HIT_COOLDOWN
         ) {
             scene.lastPlayerHitTime = time;
 
             // 플레이어 체력 감소
-            scene.playerHp -= 1;
+            scene.playerHp -= ENEMY.ATTACK_DAMAGE;
 
             // 하트 UI 갱신
             updateHealthUI(scene);
@@ -61,8 +70,8 @@ export function updateEnemyBullets(scene, time, dt) {
         const bullet = scene.enemyBullets[i];
 
         // 탄환 이동
-        bullet.x += bullet.vx * 180 * dt;
-        bullet.y += bullet.vy * 180 * dt;
+        bullet.x += bullet.vx * COMBAT.ENEMY_BULLET_SPEED * dt;
+        bullet.y += bullet.vy * COMBAT.ENEMY_BULLET_SPEED * dt;
 
         // 플레이어와 탄환 사이 거리 계산
         const distanceToPlayer = Phaser.Math.Distance.Between(
@@ -74,13 +83,13 @@ export function updateEnemyBullets(scene, time, dt) {
 
         // 플레이어 피격 확인
         if (
-            distanceToPlayer <= 26 &&
-            time - scene.lastPlayerHitTime >= 1000
+            distanceToPlayer <= COMBAT.ENEMY_BULLET_HIT_RANGE &&
+            time - scene.lastPlayerHitTime >= PLAYER.HIT_COOLDOWN
         ) {
             scene.lastPlayerHitTime = time;
 
             // 플레이어 체력 감소
-            scene.playerHp -= 1;
+            scene.playerHp -= ENEMY.ATTACK_DAMAGE;
 
             // 하트 UI 갱신
             updateHealthUI(scene);
@@ -111,9 +120,9 @@ export function updateEnemyBullets(scene, time, dt) {
         // 화면 밖으로 나간 탄환 제거
         if (
             bullet.x < 0 ||
-            bullet.x > 800 ||
+            bullet.x > GAME.WIDTH ||
             bullet.y < 0 ||
-            bullet.y > 600
+            bullet.y > GAME.HEIGHT
         ) {
             bullet.destroy();
             scene.enemyBullets.splice(i, 1);
@@ -126,8 +135,8 @@ export function updateBullets(scene, dt) {
     for (let i = scene.bullets.length - 1; i >= 0; i--) {
         const bullet = scene.bullets[i];
 
-        bullet.x += bullet.vx * 350 * dt;
-        bullet.y += bullet.vy * 350 * dt;
+        bullet.x += bullet.vx * COMBAT.FRIENDLY_BULLET_SPEED * dt;
+        bullet.y += bullet.vy * COMBAT.FRIENDLY_BULLET_SPEED * dt;
 
         let bulletHit = false;
 
@@ -141,12 +150,16 @@ export function updateBullets(scene, dt) {
                 enemy.y
             );
 
-            if (bulletDistance <= 21) {
+            if (bulletDistance <= COMBAT.FRIENDLY_BULLET_HIT_RANGE) {
                 bullet.destroy();
                 scene.bullets.splice(i, 1);
 
                 // 충돌한 적에게 피해 적용
-                damageEnemy(scene, 1, enemy);
+                const damage = bullet.isAllyBullet
+                    ? ALLY.ATTACK_DAMAGE
+                    : PLAYER.ATTACK_DAMAGE;
+
+                damageEnemy(scene, damage, enemy);
 
                 bulletHit = true;
                 break;
@@ -282,7 +295,7 @@ export function damageEnemy(
         scene.enemy = null;
 
         // 50% 확률로 포획 후보 등장
-        if (Math.random() < 0.5) {
+        if (Math.random() < CAPTURE.CHANCE) {
             spawnCaptureCandidate(
                 scene,
                 deadX,
@@ -292,8 +305,8 @@ export function damageEnemy(
             );
         }
 
-        // 3초 후 적 재생성
-        scene.time.delayedCall(3000, () => {
+        // ENEMY.RESPAWN_DELAY초 후 적 재생성
+        scene.time.delayedCall(ENEMY.RESPAWN_DELAY, () => {
             if (!scene.isGameOver && !scene.isReplacingAlly) {
                 spawnEnemy(scene);
             }

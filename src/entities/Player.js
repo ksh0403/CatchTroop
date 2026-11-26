@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { GAME, PLAYER } from '../config/gameConstants.js';
 
 import {
     getNearestEnemy,
@@ -25,8 +26,8 @@ export function createPlayer(scene) {
     scene.player.setAlpha(0);
 
     // 플레이어 체력
-    scene.playerMaxHp = 5;
-    scene.playerHp = 5;
+    scene.playerMaxHp = PLAYER.MAX_HP;
+    scene.playerHp = PLAYER.MAX_HP;
     scene.lastPlayerHitTime = -1000;
     scene.isGameOver = false;
 }
@@ -43,8 +44,8 @@ export function updatePlayer(scene, time, dt) {
 
     const direction = new Phaser.Math.Vector2(dx, dy).normalize();
 
-    scene.player.x += direction.x * 200 * dt;
-    scene.player.y += direction.y * 200 * dt;
+    scene.player.x += direction.x * PLAYER.MOVE_SPEED * dt;
+    scene.player.y += direction.y * PLAYER.MOVE_SPEED * dt;
 
     scene.player.x = Phaser.Math.Clamp(scene.player.x, 20, 780);
     scene.player.y = Phaser.Math.Clamp(scene.player.y, 20, 580);
@@ -82,8 +83,8 @@ export function updatePlayerAttack(scene, time) {
         );
 
         if (
-            distanceToEnemy <= 200 &&
-            time - scene.lastAttackTime >= 600
+            distanceToEnemy <= PLAYER.ATTACK_RANGE &&
+            time - scene.lastAttackTime >= PLAYER.ATTACK_COOLDOWN
         ) {
             shootBullet(scene, nearestEnemy);
             scene.lastAttackTime = time;
