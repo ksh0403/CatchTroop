@@ -5,6 +5,25 @@ import {
     RANGED_MONSTERS
 } from '../data/monsterData.js';
 
+import {
+    createPlayer,
+    updatePlayer,
+    updatePlayerAttack
+} from '../entities/Player.js';
+
+import {
+    spawnEnemy,
+    updateEnemies,
+    separateEnemies
+} from '../entities/Enemy.js';
+
+import {
+    spawnAlly,
+    updateAllies,
+    separateAllies,
+    updateAllyAnimations
+} from '../entities/Ally.js';
+
 export default class GameScene extends Phaser.Scene {
     constructor() {
         super('GameScene');
@@ -56,27 +75,8 @@ export default class GameScene extends Phaser.Scene {
         // 배경
         this.cameras.main.setBackgroundColor('#294b3a');
 
-        // 플레이어
-        this.player = this.add.circle(400, 300, 20, 0xffd166);
-
-        // 플레이어 이미지 표시
-        this.playerImage = this.add.image(
-            this.player.x,
-            this.player.y,
-            'player'
-        );
-
-        this.playerImage.setDisplaySize(86, 72);
-        this.playerImage.setDepth(3);
-
-        // 기존 노란색 원 숨기기
-        this.player.setAlpha(0);
-
-        // 플레이어 체력
-        this.playerMaxHp = 5;
-        this.playerHp = 5;
-        this.lastPlayerHitTime = -1000;
-        this.isGameOver = false;
+        // 플레이어 생성
+        createPlayer(this);
 
         // 키보드 입력
         this.cursors = this.input.keyboard.createCursorKeys();
@@ -115,14 +115,14 @@ export default class GameScene extends Phaser.Scene {
         // 적
         this.enemy = null;
         this.enemies = [];
-        this.spawnEnemy();
+        spawnEnemy(this);
 
         // 5초마다 새로운 적 생성
         this.time.addEvent({
             delay: 5000,
             callback: () => {
                 if (!this.isGameOver && !this.isReplacingAlly) {
-                    this.spawnEnemy();
+                    spawnEnemy(this);
                 }
             },
             loop: true,
@@ -186,13 +186,13 @@ export default class GameScene extends Phaser.Scene {
         this.updateCaptureCandidates();
 
         // 플레이어 이동
-        this.updatePlayer(time, dt);
+        updatePlayer(this, time, dt);
 
         // 적 몬스터 추적 및 공격
-        this.updateEnemies(time, dt);
+        updateEnemies(this, time, dt);
 
         // 적 몬스터 간격 유지
-        this.separateEnemies();
+        separateEnemies(this);
 
         // 플레이어 충돌 확인
         this.checkPlayerCollision(time);
@@ -201,19 +201,19 @@ export default class GameScene extends Phaser.Scene {
         this.updateEnemyBullets(time, dt);
 
         // 플레이어 자동 공격
-        this.updatePlayerAttack(time);
+        updatePlayerAttack(this, time);
 
         // 플레이어 및 아군 마법탄 처리
         this.updateBullets(dt);
 
         // 아군 이동 및 공격
-        this.updateAllies(time, dt);
+        updateAllies(this, time, dt);
 
         // 아군 간격 유지
-        this.separateAllies();
+        separateAllies(this);
 
         // 아군 이동 애니메이션
-        this.updateAllyAnimations(time);
+        updateAllyAnimations(this, time);
     }
 
     // 개발용 테스트: T 키를 누르면 아군 10마리 채우기
@@ -224,7 +224,8 @@ export default class GameScene extends Phaser.Scene {
                     ? 'melee'
                     : 'ranged';
 
-                this.spawnAlly(
+                spawnAlly(
+                    this,
                     this.player.x,
                     this.player.y,
                     monsterType
@@ -260,7 +261,7 @@ export default class GameScene extends Phaser.Scene {
                     this.destroyCaptureCandidate(candidate);
                     this.captureCandidates.splice(i, 1);
 
-                    this.spawnAlly(x, y, monsterType, monsterKey);
+                    spawnAlly(this, x, y, monsterType, monsterKey);
                 } else if (!this.isReplacingAlly) {
                     // 아군이 10마리면 교체 모드 시작
                     this.isReplacingAlly = true;
@@ -269,177 +270,6 @@ export default class GameScene extends Phaser.Scene {
 
                     console.log('아군 교체 모드 시작!');
                     this.showReplaceUI();
-                }
-            }
-        }
-    }
-
-    // 플레이어 이동 및 애니메이션
-    updatePlayer(time, dt) {
-        let dx = 0;
-        let dy = 0;
-
-        if (this.cursors.left.isDown || this.wasd.left.isDown) dx -= 1;
-        if (this.cursors.right.isDown || this.wasd.right.isDown) dx += 1;
-        if (this.cursors.up.isDown || this.wasd.up.isDown) dy -= 1;
-        if (this.cursors.down.isDown || this.wasd.down.isDown) dy += 1;
-
-        const direction = new Phaser.Math.Vector2(dx, dy).normalize();
-
-        this.player.x += direction.x * 200 * dt;
-        this.player.y += direction.y * 200 * dt;
-
-        this.player.x = Phaser.Math.Clamp(this.player.x, 20, 780);
-        this.player.y = Phaser.Math.Clamp(this.player.y, 20, 580);
-
-        // 플레이어 이동 애니메이션
-        let bounce = 0;
-
-        if (dx !== 0 || dy !== 0) {
-            bounce = Math.abs(Math.sin(time * 0.012)) * 3;
-        }
-
-        this.playerImage.setPosition(
-            this.player.x,
-            this.player.y - bounce
-        );
-
-        // 이동 방향에 따른 이미지 좌우 반전
-        if (dx < 0) {
-            this.playerImage.setFlipX(true);
-        } else if (dx > 0) {
-            this.playerImage.setFlipX(false);
-        }
-    }
-
-    // 적 몬스터 추적 및 공격
-    updateEnemies(time, dt) {
-        for (const enemy of this.enemies) {
-            if (!enemy.active) continue;
-
-            const enemyDirection = new Phaser.Math.Vector2(
-                this.player.x - enemy.x,
-                this.player.y - enemy.y
-            );
-
-            const distance = enemyDirection.length();
-
-            // 몬스터 종류에 따라 목표 거리 설정
-            const targetDistance =
-                enemy.monsterType === 'ranged' ? 150 : 30;
-
-            if (distance > targetDistance) {
-                enemyDirection.normalize();
-
-                const moveDistance = Math.min(
-                    75 * dt,
-                    distance - targetDistance
-                );
-
-                enemy.x += enemyDirection.x * moveDistance;
-                enemy.y += enemyDirection.y * moveDistance;
-            }
-
-            // 몬스터 이미지 이동 애니메이션
-            if (enemy.monsterImage) {
-                let enemyBounce = 0;
-
-                // 근접형 몬스터 이동 효과
-                if (
-                    enemy.monsterType === 'melee' &&
-                    distance > targetDistance
-                ) {
-                    enemyBounce = Math.abs(
-                        Math.sin(time * 0.015 + enemy.lastAttackTime)
-                    ) * 2;
-                }
-
-                // 원거리형 몬스터 부유 효과
-                if (enemy.monsterType === 'ranged') {
-                    enemyBounce = Math.sin(time * 0.005) * 2;
-                }
-
-                enemy.monsterImage.setPosition(
-                    enemy.x,
-                    enemy.y - enemyBounce
-                );
-
-                // 이동 방향에 따른 이미지 좌우 반전
-                if (enemy.x < enemy.prevX) {
-                    enemy.monsterImage.setFlipX(false);
-                } else if (enemy.x > enemy.prevX) {
-                    enemy.monsterImage.setFlipX(true);
-                }
-
-                enemy.prevX = enemy.x;
-                enemy.prevY = enemy.y;
-            }
-
-            // 원거리형 몬스터 공격
-            if (
-                enemy.monsterType === 'ranged' &&
-                distance <= 250 &&
-                time - enemy.lastAttackTime >= 2000
-            ) {
-                enemy.lastAttackTime = time;
-
-                const angle = Phaser.Math.Angle.Between(
-                    enemy.x,
-                    enemy.y,
-                    this.player.x,
-                    this.player.y
-                );
-
-                const bullet = this.add.circle(
-                    enemy.x,
-                    enemy.y,
-                    6,
-                    0xfecaca
-                );
-
-                // 적군 마법탄 빨간색 발광 효과
-                bullet.postFX.addGlow(0xff3333, 8, 0, false);
-
-                bullet.vx = Math.cos(angle);
-                bullet.vy = Math.sin(angle);
-
-                this.enemyBullets.push(bullet);
-            }
-        }
-    }
-
-    // 적 몬스터 간격 유지
-    separateEnemies() {
-        const minEnemyDistance = 25;
-
-        for (let i = 0; i < this.enemies.length; i++) {
-            for (let j = i + 1; j < this.enemies.length; j++) {
-                const enemyA = this.enemies[i];
-                const enemyB = this.enemies[j];
-
-                if (!enemyA.active || !enemyB.active) continue;
-
-                const dx = enemyB.x - enemyA.x;
-                const dy = enemyB.y - enemyA.y;
-
-                const distance = Math.sqrt(dx * dx + dy * dy);
-
-                if (distance < minEnemyDistance) {
-                    const angle =
-                        distance === 0
-                            ? Math.random() * Math.PI * 2
-                            : Math.atan2(dy, dx);
-
-                    const overlap = (minEnemyDistance - distance) / 2;
-
-                    const pushX = Math.cos(angle) * overlap;
-                    const pushY = Math.sin(angle) * overlap;
-
-                    enemyA.x -= pushX;
-                    enemyA.y -= pushY;
-
-                    enemyB.x += pushX;
-                    enemyB.y += pushY;
                 }
             }
         }
@@ -589,28 +419,6 @@ export default class GameScene extends Phaser.Scene {
         }
     }
 
-    // 플레이어 자동 공격
-    updatePlayerAttack(time) {
-        const nearestEnemy = this.getNearestEnemy();
-
-        if (nearestEnemy) {
-            const distanceToEnemy = Phaser.Math.Distance.Between(
-                this.player.x,
-                this.player.y,
-                nearestEnemy.x,
-                nearestEnemy.y
-            );
-
-            if (
-                distanceToEnemy <= 200 &&
-                time - this.lastAttackTime >= 600
-            ) {
-                this.shootBullet(nearestEnemy);
-                this.lastAttackTime = time;
-            }
-        }
-    }
-
     // 플레이어 및 아군 마법탄 이동과 충돌 처리
     updateBullets(dt) {
         for (let i = this.bullets.length - 1; i >= 0; i--) {
@@ -660,231 +468,6 @@ export default class GameScene extends Phaser.Scene {
             }
         }
     }
-
-    // 아군 이동 및 공격
-    updateAllies(time, dt) {
-        for (let i = 0; i < this.allies.length; i++) {
-            const ally = this.allies[i];
-
-            // 이동 전 아군 위치 저장
-            const oldAllyX = ally.x;
-            const oldAllyY = ally.y;
-
-            let isFighting = false;
-
-            // 아군에게 가장 가까운 적 찾기
-            const targetEnemy = this.getNearestEnemyTo(ally);
-
-            // 가까운 적이 존재하면 전투 여부 확인
-            if (targetEnemy && targetEnemy.active) {
-                const enemyDistance = Phaser.Math.Distance.Between(
-                    ally.x,
-                    ally.y,
-                    targetEnemy.x,
-                    targetEnemy.y
-                );
-
-                // 적이 180px 이내면 전투 시작
-                if (enemyDistance <= 180) {
-                    isFighting = true;
-
-                    // 아군 종류에 따라 적과 유지할 거리 설정
-                    const targetDistance =
-                        ally.monsterType === 'ranged' ? 120 : 28;
-
-                    // 목표 거리보다 멀면 적에게 접근
-                    if (enemyDistance > targetDistance) {
-                        const attackDirection = new Phaser.Math.Vector2(
-                            targetEnemy.x - ally.x,
-                            targetEnemy.y - ally.y
-                        ).normalize();
-
-                        const moveDistance = Math.min(
-                            170 * dt,
-                            enemyDistance - targetDistance
-                        );
-
-                        ally.x += attackDirection.x * moveDistance;
-                        ally.y += attackDirection.y * moveDistance;
-                    }
-
-                    // 이동 후 적과의 거리를 다시 계산
-                    const newDistance = Phaser.Math.Distance.Between(
-                        ally.x,
-                        ally.y,
-                        targetEnemy.x,
-                        targetEnemy.y
-                    );
-
-                    // 아군 종류에 따라 공격 가능 거리 설정
-                    const attackRange =
-                        ally.monsterType === 'ranged' ? 150 : 30;
-
-                    // 공격 거리 안이면 0.8초마다 공격
-                    if (
-                        newDistance <= attackRange &&
-                        time - ally.lastAttackTime >= 800
-                    ) {
-                        ally.lastAttackTime = time;
-
-                        if (ally.monsterType === 'ranged') {
-                            // 원거리형: 적을 향해 마법탄 발사
-                            const angle = Phaser.Math.Angle.Between(
-                                ally.x,
-                                ally.y,
-                                targetEnemy.x,
-                                targetEnemy.y
-                            );
-
-                            const bullet = this.add.circle(
-                                ally.x,
-                                ally.y,
-                                5,
-                                0xbfdbfe
-                            );
-
-                            // 아군 마법탄 파란색 발광 효과
-                            bullet.postFX.addGlow(0x3b82f6, 8, 0, false);
-
-                            bullet.vx = Math.cos(angle);
-                            bullet.vy = Math.sin(angle);
-
-                            // 아군이 발사한 탄환임을 기록
-                            bullet.isAllyBullet = true;
-
-                            this.bullets.push(bullet);
-                        } else {
-                            // 근접형: 기존처럼 직접 피해
-                            this.damageEnemy(1, targetEnemy);
-                        }
-                    }
-                }
-            }
-
-            // 전투 중이라면 진형 복귀 생략
-            if (isFighting) {
-                continue;
-            }
-
-            // 적이 없거나 멀면 원형 진형 복귀
-            const angle = (Math.PI * 2 * i) / this.allies.length;
-
-            const targetX = this.player.x + Math.cos(angle) * 80;
-            const targetY = this.player.y + Math.sin(angle) * 80;
-
-            const allyDirection = new Phaser.Math.Vector2(
-                targetX - ally.x,
-                targetY - ally.y
-            );
-
-            const distance = allyDirection.length();
-
-            if (distance > 5) {
-                allyDirection.normalize();
-
-                const moveDistance = Math.min(
-                    230 * dt,
-                    distance
-                );
-
-                ally.x += allyDirection.x * moveDistance;
-                ally.y += allyDirection.y * moveDistance;
-            }
-        }
-    }
-
-    // 아군 간격 유지
-    separateAllies() {
-        for (let i = 0; i < this.allies.length; i++) {
-            for (let j = i + 1; j < this.allies.length; j++) {
-                const allyA = this.allies[i];
-                const allyB = this.allies[j];
-
-                // 모든 아군은 중심 사이 거리 최소 30px을 유지함
-                const minAllyDistance = 30;
-
-                const dx = allyB.x - allyA.x;
-                const dy = allyB.y - allyA.y;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-
-                if (distance < minAllyDistance) {
-                    // 완전히 같은 위치에 있을 때도 방향을 만들기
-                    const angle = distance === 0
-                        ? Math.random() * Math.PI * 2
-                        : Math.atan2(dy, dx);
-
-                    const overlap = (minAllyDistance - distance) / 2;
-
-                    const pushX = Math.cos(angle) * overlap;
-                    const pushY = Math.sin(angle) * overlap;
-
-                    allyA.x -= pushX;
-                    allyA.y -= pushY;
-
-                    allyB.x += pushX;
-                    allyB.y += pushY;
-                }
-            }
-        }
-    }
-
-    // 아군 이동 애니메이션
-    updateAllyAnimations(time) {
-        for (const ally of this.allies) {
-            if (ally.active && ally.monsterImage) {
-                let allyBounce = 0;
-
-                // 아군의 실제 이동 여부 확인
-                const isAllyMoving =
-                    ally.x !== ally.prevX || ally.y !== ally.prevY;
-
-                // 몬스터별 애니메이션 타이밍 설정
-                if (ally.bounceOffset === undefined) {
-                    ally.bounceOffset = Math.random() * Math.PI * 2;
-                }
-
-                // 근접형 아군 이동 효과
-                if (ally.monsterType === 'melee' && isAllyMoving) {
-                    allyBounce = Math.abs(
-                        Math.sin(time * 0.010 + ally.bounceOffset)
-                    ) * 2;
-                }
-
-                // 원거리형 아군 부유 효과
-                if (ally.monsterType === 'ranged') {
-                    allyBounce = Math.sin(
-                        time * 0.005 + ally.bounceOffset
-                    ) * 2;
-                }
-
-                ally.monsterImage.setPosition(
-                    ally.x,
-                    ally.y - allyBounce
-                );
-
-                // 아군 이동 방향에 따라 이미지 좌우 반전
-                if (ally.x < ally.prevX) {
-                    ally.monsterImage.setFlipX(false);
-                } else if (ally.x > ally.prevX) {
-                    ally.monsterImage.setFlipX(true);
-                }
-
-                // 현재 위치 저장
-                ally.prevX = ally.x;
-                ally.prevY = ally.y;
-
-                // 현재 위치 저장
-                ally.prevX = ally.x;
-                ally.prevY = ally.y;
-            }
-        }
-    }
-
-
-
-
-
-
 
     // ─────────────────────
     // 6. 마법탄 생성
@@ -964,131 +547,6 @@ export default class GameScene extends Phaser.Scene {
         this.bullets.push(bullet);
     }
 
-    // ─────────────────────
-    // 7. 적 몬스터 생성
-    // ─────────────────────
-
-    spawnEnemy() {
-        let spawnX = 100;
-        let spawnY = 100;
-        let validPosition = false;
-
-        // 최대 30번까지 겹치지 않는 위치 탐색
-        for (let attempt = 0; attempt < 30; attempt++) {
-            const x = Phaser.Math.Between(30, 770);
-            const y = Phaser.Math.Between(100, 520);
-
-            // 다른 적과 최소 50px 간격 유지
-            const tooCloseToEnemy = this.enemies.some(enemy => {
-                return Phaser.Math.Distance.Between(
-                    x, y, enemy.x, enemy.y
-                ) < 50;
-            });
-
-            // 플레이어와 최소 150px 간격 유지
-            const tooCloseToPlayer =
-                Phaser.Math.Distance.Between(
-                    x, y, this.player.x, this.player.y
-                ) < 150;
-
-            if (!tooCloseToEnemy && !tooCloseToPlayer) {
-                spawnX = x;
-                spawnY = y;
-                validPosition = true;
-                break;
-            }
-        }
-
-        // 적당한 위치를 찾지 못했다면 이번 생성은 건너뛰기
-        if (!validPosition) return;
-
-        const enemy = this.add.circle(
-            spawnX,
-            spawnY,
-            15,
-            0xff6b6b
-        );
-
-        enemy.hp = 8;
-        enemy.lastAttackTime = 0;
-
-        // 몬스터 종류: 근접형 또는 원거리형
-        enemy.monsterType = Math.random() < 0.5
-            ? 'melee'
-            : 'ranged';
-
-        // 몬스터 종류에 맞는 목록 선택
-        const monsterList =
-            enemy.monsterType === 'melee'
-                ? MELEE_MONSTERS
-                : RANGED_MONSTERS;
-
-        // 목록에서 몬스터 한 마리 랜덤 선택
-        enemy.monsterKey = Phaser.Utils.Array.GetRandom(
-            monsterList
-        );
-
-        // 몬스터 종류에 따라 색상 구분
-        if (enemy.monsterType === 'melee') {
-            enemy.setFillStyle(0xff6b6b); // 근접형: 빨간색
-        } else {
-            enemy.setFillStyle(0xb388ff); // 원거리형: 보라색
-        }
-
-        // 근접형 적 이미지 표시
-        if (enemy.monsterType === 'melee') {
-            enemy.monsterImage = this.add.image(
-                enemy.x,
-                enemy.y,
-                enemy.monsterKey
-            );
-
-            enemy.monsterImage.setDisplaySize(48, 48);
-            enemy.monsterImage.setDepth(2);
-
-            // PNG 실루엣을 따라 빨간 외곽 효과
-            enemy.monsterImage.postFX.addGlow(
-                0xff3333,
-                4,
-                0,
-                false,
-                0.1,
-                12
-            );
-        }
-
-        // 원거리형 적 이미지 표시
-        if (enemy.monsterType === 'ranged') {
-            enemy.monsterImage = this.add.image(
-                enemy.x,
-                enemy.y,
-                enemy.monsterKey
-            );
-
-            enemy.monsterImage.setDisplaySize(48, 48);
-            enemy.monsterImage.setDepth(2);
-
-            // 원거리 적의 빨간색 테두리
-            enemy.monsterImage.postFX.addGlow(
-                0xff3333,
-                4,
-                0,
-                false,
-                0.1,
-                12
-            );
-        }
-
-        // 이미지가 있는 적은 기존 원을 숨김
-        if (enemy.monsterImage) {
-            enemy.setAlpha(0);
-        }
-
-        this.enemies.push(enemy);
-
-        // 기존 코드와의 호환성 유지
-        this.enemy = enemy;
-    }
 
     // ─────────────────────
     // 8. 아군 생성
@@ -1297,7 +755,7 @@ export default class GameScene extends Phaser.Scene {
                 );
 
                 // 4. 새 아군 합류
-                this.spawnAlly(x, y, monsterType, monsterKey);
+                spawnAlly(this, x, y, monsterType, monsterKey);
 
                 // 새 아군을 원래 선택한 칸으로 이동
                 const newAlly = this.allies.pop();
@@ -1397,93 +855,6 @@ export default class GameScene extends Phaser.Scene {
         this.selectedCaptureCandidate = null;
         this.isReplacingAlly = false;
         this.time.paused = false; // 게임 타이머 다시 시작
-    }
-
-    spawnAlly(x, y, monsterType, monsterKey) {
-        if (this.allies.length >= 10) return;
-
-        const ally = this.add.circle(
-            x,
-            y,
-            13,
-            0x6ee7b7
-        );
-
-        // 포획한 몬스터의 종류 저장
-        ally.monsterType = monsterType;
-
-        // 몬스터 이름 저장 (테스트용 아군은 랜덤 선택)
-        ally.monsterKey = monsterKey ?? Phaser.Utils.Array.GetRandom(
-            monsterType === 'melee'
-                ? MELEE_MONSTERS
-                : RANGED_MONSTERS
-        );
-
-        // 아군 종류에 따라 색상 구분
-        if (ally.monsterType === 'ranged') {
-            ally.setFillStyle(0x60a5fa); // 원거리형 아군: 파란색
-        } else {
-            ally.setFillStyle(0x6ee7b7); // 근접형 아군: 초록색
-        }
-
-        // 근접형 아군 이미지 표시
-        if (monsterType === 'melee') {
-            ally.monsterImage = this.add.image(
-                ally.x,
-                ally.y,
-                ally.monsterKey
-            );
-
-            ally.monsterImage.setDisplaySize(48, 48);
-            ally.monsterImage.setDepth(2);
-
-            // PNG 모양을 따라 파란색 테두리 표시
-            ally.monsterImage.postFX.addGlow(
-                0x3b82f6,
-                4,
-                0,
-                false,
-                0.1,
-                12
-            );
-
-            // 기존 초록색 원 숨기기
-            ally.setAlpha(0);
-        }
-
-        // 원거리형 아군 이미지 표시
-        if (monsterType === 'ranged') {
-            ally.monsterImage = this.add.image(
-                ally.x,
-                ally.y,
-                ally.monsterKey
-            );
-
-            ally.monsterImage.setDisplaySize(48, 48);
-            ally.monsterImage.setDepth(2);
-
-            // 아군은 파란색 테두리
-            ally.monsterImage.postFX.addGlow(
-                0x3b82f6,
-                4,
-                0,
-                false,
-                0.1,
-                12
-            );
-
-            // 기존 파란색 원 숨기기
-            ally.setAlpha(0);
-        }
-
-        // 아군별 공격 시간 기록
-        ally.lastAttackTime = 0;
-
-        this.allies.push(ally);
-
-        this.allyText.setText(
-            `Allies: ${this.allies.length} / 10`
-        );
     }
 
     // 포획 후보와 몬스터 이미지를 함께 제거
@@ -1675,7 +1046,7 @@ export default class GameScene extends Phaser.Scene {
             // 3초 후 적 재생성
             this.time.delayedCall(3000, () => {
                 if (!this.isGameOver && !this.isReplacingAlly) {
-                    this.spawnEnemy();
+                    spawnEnemy(this);
                 }
             });
         } else {
