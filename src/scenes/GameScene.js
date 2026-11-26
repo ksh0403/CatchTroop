@@ -24,6 +24,17 @@ import {
     updateAllyAnimations
 } from '../entities/Ally.js';
 
+import {
+    checkPlayerCollision,
+    updateEnemyBullets,
+    updateBullets
+} from '../systems/CombatSystem.js';
+
+import {
+    updateCaptureCandidates,
+    destroyCaptureCandidate
+} from '../systems/CaptureSystem.js';
+
 export default class GameScene extends Phaser.Scene {
     constructor() {
         super('GameScene');
@@ -183,7 +194,7 @@ export default class GameScene extends Phaser.Scene {
         this.handleDebugInput();
 
         // 포획 후보 영입
-        this.updateCaptureCandidates();
+        updateCaptureCandidates(this);
 
         // 플레이어 이동
         updatePlayer(this, time, dt);
@@ -195,16 +206,16 @@ export default class GameScene extends Phaser.Scene {
         separateEnemies(this);
 
         // 플레이어 충돌 확인
-        this.checkPlayerCollision(time);
+        checkPlayerCollision(this, time);
 
         // 적 마법탄 처리
-        this.updateEnemyBullets(time, dt);
+        updateEnemyBullets(this, time, dt);
 
         // 플레이어 자동 공격
         updatePlayerAttack(this, time);
 
         // 플레이어 및 아군 마법탄 처리
-        this.updateBullets(dt);
+        updateBullets(this, dt);
 
         // 아군 이동 및 공격
         updateAllies(this, time, dt);
@@ -235,318 +246,6 @@ export default class GameScene extends Phaser.Scene {
             console.log('테스트용 아군 10마리 생성 완료!');
         }
     }
-
-    // 포획 후보 영입
-    updateCaptureCandidates() {
-        for (let i = this.captureCandidates.length - 1; i >= 0; i--) {
-            const candidate = this.captureCandidates[i];
-
-            if (!candidate.active) continue;
-
-            const distance = Phaser.Math.Distance.Between(
-                this.player.x,
-                this.player.y,
-                candidate.x,
-                candidate.y
-            );
-
-            if (distance <= 35) {
-                if (this.allies.length < 10) {
-                    // 아군 자리가 남아 있으면 바로 영입
-                    const x = candidate.x;
-                    const y = candidate.y;
-                    const monsterType = candidate.monsterType;
-                    const monsterKey = candidate.monsterKey;
-
-                    this.destroyCaptureCandidate(candidate);
-                    this.captureCandidates.splice(i, 1);
-
-                    spawnAlly(this, x, y, monsterType, monsterKey);
-                } else if (!this.isReplacingAlly) {
-                    // 아군이 10마리면 교체 모드 시작
-                    this.isReplacingAlly = true;
-                    this.selectedCaptureCandidate = candidate;
-                    this.time.paused = true;
-
-                    console.log('아군 교체 모드 시작!');
-                    this.showReplaceUI();
-                }
-            }
-        }
-    }
-
-    // 적과 플레이어 충돌 확인
-    checkPlayerCollision(time) {
-        for (const enemy of this.enemies) {
-            if (!enemy.active) continue;
-
-            const distanceToPlayer = Phaser.Math.Distance.Between(
-                this.player.x,
-                this.player.y,
-                enemy.x,
-                enemy.y
-            );
-
-            if (
-                distanceToPlayer <= 35 &&
-                this.playerHp > 0 &&
-                time - this.lastPlayerHitTime >= 1000
-            ) {
-                this.lastPlayerHitTime = time;
-
-                // 플레이어 체력 감소
-                this.playerHp -= 1;
-
-                // 하트 UI 갱신
-                this.hpHearts.forEach((heart, index) => {
-                    heart.setVisible(index < this.playerHp);
-                });
-
-                // 체력이 0이면 게임 종료
-                if (this.playerHp <= 0) {
-                    this.isGameOver = true;
-                    this.time.paused = true;
-
-                    this.add.text(400, 300, 'GAME OVER', {
-                        fontSize: '64px',
-                        color: '#ff6b6b',
-                        fontStyle: 'bold',
-                        stroke: '#000000',
-                        strokeThickness: 5,
-                    }).setOrigin(0.5).setDepth(10);
-
-                    this.add.text(400, 355, 'Press R to Restart', {
-                        fontSize: '18px',
-                        color: '#ffffff',
-                        stroke: '#000000',
-                        strokeThickness: 3,
-                    }).setOrigin(0.5).setDepth(10);
-                }
-
-                // 플레이어 피격 효과
-                this.playerImage.setTint(0xff6b6b);
-
-                this.time.delayedCall(200, () => {
-                    if (this.playerImage.active) {
-                        this.playerImage.clearTint();
-                    }
-                });
-
-                // 한 프레임에 중복 피격 방지
-                break;
-            }
-        }
-    }
-
-    // 적 마법탄 이동 및 충돌 처리
-    updateEnemyBullets(time, dt) {
-        for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
-            const bullet = this.enemyBullets[i];
-
-            // 탄환 이동
-            bullet.x += bullet.vx * 180 * dt;
-            bullet.y += bullet.vy * 180 * dt;
-
-            // 플레이어와 탄환 사이 거리 계산
-            const distanceToPlayer = Phaser.Math.Distance.Between(
-                bullet.x,
-                bullet.y,
-                this.player.x,
-                this.player.y
-            );
-
-            // 플레이어 피격 확인
-            if (
-                distanceToPlayer <= 26 &&
-                time - this.lastPlayerHitTime >= 1000
-            ) {
-                this.lastPlayerHitTime = time;
-
-                // 플레이어 체력 감소
-                this.playerHp -= 1;
-
-                // 하트 UI 갱신
-                this.hpHearts.forEach((heart, index) => {
-                    heart.setVisible(index < this.playerHp);
-                });
-
-                // 플레이어 피격 효과
-                this.playerImage.setTint(0xff6b6b);
-
-                this.time.delayedCall(200, () => {
-                    if (this.playerImage.active) {
-                        this.playerImage.clearTint();
-                    }
-                });
-
-                // 탄환 제거
-                bullet.destroy();
-                this.enemyBullets.splice(i, 1);
-
-                // 체력이 0이면 게임 종료
-                if (this.playerHp <= 0) {
-                    this.isGameOver = true;
-
-                    this.add.text(400, 300, 'GAME OVER', {
-                        fontSize: '64px',
-                        color: '#ff6b6b',
-                        fontStyle: 'bold',
-                        stroke: '#000000',
-                        strokeThickness: 5,
-                    }).setOrigin(0.5).setDepth(10);
-
-                    this.add.text(400, 355, 'Press R to Restart', {
-                        fontSize: '18px',
-                        color: '#ffffff',
-                        stroke: '#000000',
-                        strokeThickness: 3,
-                    }).setOrigin(0.5).setDepth(10);
-                }
-
-                continue;
-            }
-
-            // 화면 밖으로 나간 탄환 제거
-            if (
-                bullet.x < 0 ||
-                bullet.x > 800 ||
-                bullet.y < 0 ||
-                bullet.y > 600
-            ) {
-                bullet.destroy();
-                this.enemyBullets.splice(i, 1);
-            }
-        }
-    }
-
-    // 플레이어 및 아군 마법탄 이동과 충돌 처리
-    updateBullets(dt) {
-        for (let i = this.bullets.length - 1; i >= 0; i--) {
-            const bullet = this.bullets[i];
-
-            bullet.x += bullet.vx * 350 * dt;
-            bullet.y += bullet.vy * 350 * dt;
-
-            let bulletHit = false;
-
-            for (const enemy of this.enemies) {
-                if (!enemy.active) continue;
-
-                const bulletDistance = Phaser.Math.Distance.Between(
-                    bullet.x,
-                    bullet.y,
-                    enemy.x,
-                    enemy.y
-                );
-
-                if (bulletDistance <= 21) {
-                    bullet.destroy();
-                    this.bullets.splice(i, 1);
-
-                    // 충돌한 적에게 피해 적용
-                    this.damageEnemy(1, enemy);
-
-                    bulletHit = true;
-                    break;
-                }
-            }
-
-            // 충돌한 마법탄은 이후 처리하지 않음
-            if (bulletHit) {
-                continue;
-            }
-
-
-            if (
-                bullet.x < 0 ||
-                bullet.x > 800 ||
-                bullet.y < 0 ||
-                bullet.y > 600
-            ) {
-                bullet.destroy();
-                this.bullets.splice(i, 1);
-            }
-        }
-    }
-
-    // ─────────────────────
-    // 6. 마법탄 생성
-    // ─────────────────────
-
-    // 플레이어에게 가장 가까운 적 찾기
-    getNearestEnemy() {
-        let nearestEnemy = null;
-        let nearestDistance = Infinity;
-
-        for (const enemy of this.enemies) {
-            if (!enemy.active) continue;
-
-            const distance = Phaser.Math.Distance.Between(
-                this.player.x,
-                this.player.y,
-                enemy.x,
-                enemy.y
-            );
-
-            if (distance < nearestDistance) {
-                nearestDistance = distance;
-                nearestEnemy = enemy;
-            }
-        }
-
-        return nearestEnemy;
-    }
-
-    // 특정 캐릭터에게 가장 가까운 적 찾기
-    getNearestEnemyTo(character) {
-        let nearestEnemy = null;
-        let nearestDistance = Infinity;
-
-        for (const enemy of this.enemies) {
-            if (!enemy.active) continue;
-
-            const distance = Phaser.Math.Distance.Between(
-                character.x,
-                character.y,
-                enemy.x,
-                enemy.y
-            );
-
-            if (distance < nearestDistance) {
-                nearestDistance = distance;
-                nearestEnemy = enemy;
-            }
-        }
-
-        return nearestEnemy;
-    }
-
-    shootBullet(targetEnemy) {
-        if (!targetEnemy || !targetEnemy.active) return;
-
-        const angle = Phaser.Math.Angle.Between(
-            this.player.x,
-            this.player.y,
-            targetEnemy.x,
-            targetEnemy.y
-        );
-
-        const bullet = this.add.circle(
-            this.player.x,
-            this.player.y,
-            6,
-            0xe9d5ff
-        );
-
-        // 플레이어 마법탄 보라색 발광 효과
-        bullet.postFX.addGlow(0xa855f7, 8, 0, false);
-
-        bullet.vx = Math.cos(angle);
-        bullet.vy = Math.sin(angle);
-
-        this.bullets.push(bullet);
-    }
-
 
     // ─────────────────────
     // 8. 아군 생성
@@ -748,7 +447,7 @@ export default class GameScene extends Phaser.Scene {
                 const monsterKey = candidate.monsterKey;
 
                 // 3. 포획 후보 제거
-                this.destroyCaptureCandidate(candidate);
+                destroyCaptureCandidate(this, candidate);
 
                 this.captureCandidates = this.captureCandidates.filter(
                     item => item !== candidate
@@ -820,7 +519,7 @@ export default class GameScene extends Phaser.Scene {
             // 포획 후보 제거
             const candidate = this.selectedCaptureCandidate;
 
-            this.destroyCaptureCandidate(candidate);
+            destroyCaptureCandidate(this, candidate);
 
             this.captureCandidates = this.captureCandidates.filter(
                 item => item !== candidate
@@ -855,223 +554,5 @@ export default class GameScene extends Phaser.Scene {
         this.selectedCaptureCandidate = null;
         this.isReplacingAlly = false;
         this.time.paused = false; // 게임 타이머 다시 시작
-    }
-
-    // 포획 후보와 몬스터 이미지를 함께 제거
-    destroyCaptureCandidate(candidate) {
-        if (!candidate || !candidate.active) return;
-
-        if (candidate.monsterImage) {
-            candidate.monsterImage.destroy();
-        }
-
-        // 버블 애니메이션 종료
-        this.tweens.killTweensOf(candidate);
-
-        // 버블의 빛 반사 효과 제거
-        if (candidate.reflection) {
-            this.tweens.killTweensOf(candidate.reflection);
-            candidate.reflection.destroy();
-        }
-
-        candidate.destroy();
-    }
-
-    // ─────────────────────
-    // 포획 후보 생성
-    // ─────────────────────
-
-    spawnCaptureCandidate(x, y, monsterType, monsterKey) {
-        /// 포획 후보를 감싸는 투명한 흰색 버블
-        const candidate = this.add.circle(x, y, 34, 0xffffff, 0.05);
-
-        // 버블의 흰색 테두리
-        candidate.setStrokeStyle(2, 0xffffff, 0.85);
-        candidate.setDepth(1);
-
-        // 버블 표면의 빛 반사 효과
-        candidate.reflection = this.add.graphics();
-
-        candidate.reflection.lineStyle(3, 0xffffff, 0.9);
-        candidate.reflection.beginPath();
-        candidate.reflection.arc(
-            0, 0, 29,
-            Phaser.Math.DegToRad(195),
-            Phaser.Math.DegToRad(255)
-        );
-        candidate.reflection.strokePath();
-
-        // 오른쪽 아래의 작은 빛 반사
-        candidate.reflection.lineStyle(2, 0xffffff, 0.5);
-        candidate.reflection.beginPath();
-        candidate.reflection.arc(
-            0, 0, 23,
-            Phaser.Math.DegToRad(25),
-            Phaser.Math.DegToRad(65)
-        );
-        candidate.reflection.strokePath();
-
-        candidate.reflection.setPosition(x, y);
-        candidate.reflection.setDepth(4);
-
-        // 포획 후보 버블 확대·축소 및 밝기 애니메이션
-        this.tweens.add({
-            targets: [candidate, candidate.reflection],
-            scaleX: 1.12,
-            scaleY: 1.12,
-            alpha: { from: 0.6, to: 1 },
-            duration: 700,
-            ease: 'Sine.easeInOut',
-            yoyo: true,
-            repeat: -1
-        });
-
-        candidate.monsterType = monsterType;
-        candidate.monsterKey = monsterKey;
-
-        // 근접형 포획 후보 이미지 표시
-        if (monsterType === 'melee') {
-            candidate.monsterImage = this.add.image(
-                x,
-                y,
-                candidate.monsterKey
-            );
-
-            candidate.monsterImage.setDisplaySize(60, 60);
-            candidate.monsterImage.setDepth(2);
-
-            // 포획 가능한 몬스터는 노란색으로 빛나게 표시
-            candidate.monsterImage.postFX.addGlow(
-                0xffffff,
-                5,
-                0,
-                false,
-                0.1,
-                12
-            );
-        }
-
-        // 원거리형 포획 후보 이미지 표시
-        if (monsterType === 'ranged') {
-            candidate.monsterImage = this.add.image(
-                x,
-                y,
-                candidate.monsterKey
-            );
-
-            candidate.monsterImage.setDisplaySize(60, 60);
-            candidate.monsterImage.setDepth(2);
-
-            // 포획 후보는 노란색 테두리
-            candidate.monsterImage.postFX.addGlow(
-                0xffffff,
-                5,
-                0,
-                false,
-                0.1,
-                12
-            );
-        }
-
-        this.captureCandidates.push(candidate);
-
-        // 10초 후 포획 후보 소멸
-        this.time.delayedCall(10000, () => {
-            // 게임 오버 상태라면 포획 후보를 삭제하지 않음
-            if (this.isGameOver) return;
-
-            if (!candidate.active) return;
-
-            // 교체 중인 포획 후보는 사라지지 않도록 보호
-            if (
-                this.isReplacingAlly &&
-                candidate === this.selectedCaptureCandidate
-            ) {
-                return;
-            }
-
-            this.destroyCaptureCandidate(candidate);
-
-            this.captureCandidates =
-                this.captureCandidates.filter(
-                    item => item !== candidate
-                );
-        });
-    }
-
-    // ─────────────────────
-    // 9. 적 피해 및 사망 처리
-    // ─────────────────────
-
-    damageEnemy(damage, targetEnemy = this.enemy) {
-        if (!targetEnemy || !targetEnemy.active) return;
-
-        const hitEnemy = targetEnemy;
-
-        hitEnemy.hp -= damage;
-
-        if (hitEnemy.hp <= 0) {
-            // 사망 위치 저장
-            const deadX = hitEnemy.x;
-            const deadY = hitEnemy.y;
-
-            // 처치한 몬스터의 종류 저장
-            const deadMonsterType = hitEnemy.monsterType;
-            const deadMonsterKey = hitEnemy.monsterKey;
-
-            // 적이 죽으면 몬스터 이미지도 함께 제거
-            if (hitEnemy.monsterImage) {
-                hitEnemy.monsterImage.destroy();
-            }
-
-            hitEnemy.destroy();
-
-            // 처치된 적을 배열에서 제거
-            this.enemies = this.enemies.filter(
-                enemy => enemy !== hitEnemy
-            );
-
-            this.enemy = null;
-
-            // 50% 확률로 포획 후보 등장
-            if (Math.random() < 0.5) {
-                this.spawnCaptureCandidate(
-                    deadX,
-                    deadY,
-                    deadMonsterType,
-                    deadMonsterKey
-                );
-            }
-
-            // 3초 후 적 재생성
-            this.time.delayedCall(3000, () => {
-                if (!this.isGameOver && !this.isReplacingAlly) {
-                    spawnEnemy(this);
-                }
-            });
-        } else {
-            // 피격 효과
-            hitEnemy.setFillStyle(0xffffff);
-
-            // PNG 몬스터도 피격 시 하얗게 반짝이기
-            if (hitEnemy.monsterImage) {
-                hitEnemy.monsterImage.setTintFill(0xffffff);
-            }
-
-            this.time.delayedCall(100, () => {
-                if (hitEnemy.active) {
-                    hitEnemy.setFillStyle(
-                        hitEnemy.monsterType === 'ranged'
-                            ? 0xb388ff
-                            : 0xff6b6b
-                    );
-
-                    // PNG 이미지의 원래 색상 복구
-                    if (hitEnemy.monsterImage && hitEnemy.monsterImage.active) {
-                        hitEnemy.monsterImage.clearTint();
-                    }
-                }
-            });
-        }
     }
 }

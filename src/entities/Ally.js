@@ -1,6 +1,11 @@
 import Phaser from 'phaser';
 
 import {
+    getNearestEnemyTo,
+    damageEnemy
+} from '../systems/CombatSystem.js';
+
+import {
     MELEE_MONSTERS,
     RANGED_MONSTERS
 } from '../data/monsterData.js';
@@ -103,7 +108,7 @@ export function updateAllies(scene, time, dt) {
         let isFighting = false;
 
         // 아군에게 가장 가까운 적 찾기
-        const targetEnemy = scene.getNearestEnemyTo(ally);
+        const targetEnemy = getNearestEnemyTo(scene, ally);
 
         // 가까운 적이 존재하면 전투 여부 확인
         if (targetEnemy && targetEnemy.active) {
@@ -187,7 +192,7 @@ export function updateAllies(scene, time, dt) {
                         scene.bullets.push(bullet);
                     } else {
                         // 근접형: 직접 피해
-                        scene.damageEnemy(1, targetEnemy);
+                        damageEnemy(scene, 1, targetEnemy);
                     }
                 }
             }

@@ -1,5 +1,10 @@
 import Phaser from 'phaser';
 
+import {
+    getNearestEnemy,
+    shootBullet
+} from '../systems/CombatSystem.js';
+
 // 플레이어 생성 및 초기 설정
 export function createPlayer(scene) {
     scene.player = scene.add.circle(
@@ -66,7 +71,7 @@ export function updatePlayer(scene, time, dt) {
 
 // 플레이어 자동 공격
 export function updatePlayerAttack(scene, time) {
-    const nearestEnemy = scene.getNearestEnemy();
+    const nearestEnemy = getNearestEnemy(scene);
 
     if (nearestEnemy) {
         const distanceToEnemy = Phaser.Math.Distance.Between(
@@ -80,7 +85,7 @@ export function updatePlayerAttack(scene, time) {
             distanceToEnemy <= 200 &&
             time - scene.lastAttackTime >= 600
         ) {
-            scene.shootBullet(nearestEnemy);
+            shootBullet(scene, nearestEnemy);
             scene.lastAttackTime = time;
         }
     }
