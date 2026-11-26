@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { updateTroopUI } from '../ui/TroopUI.js';
 
 import {
     getNearestEnemyTo,
@@ -91,9 +92,8 @@ export function spawnAlly(scene, x, y, monsterType, monsterKey) {
 
     scene.allies.push(ally);
 
-    scene.allyText.setText(
-        `Allies: ${scene.allies.length} / 10`
-    );
+    // 아군 수 표시 갱신
+    updateTroopUI(scene);
 }
 
 // 아군 이동 및 공격

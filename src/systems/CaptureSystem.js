@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { spawnAlly } from '../entities/Ally.js';
+import { showReplaceUI } from '../ui/ReplaceUI.js';
 
 // 포획 후보 영입
 export function updateCaptureCandidates(scene) {
@@ -40,7 +41,7 @@ export function updateCaptureCandidates(scene) {
                 scene.time.paused = true;
 
                 console.log('아군 교체 모드 시작!');
-                scene.showReplaceUI();
+                showReplaceUI(scene);
             }
         }
     }

@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
 import { spawnEnemy } from '../entities/Enemy.js';
+import { updateHealthUI } from '../ui/HealthUI.js';
+import { showGameOverUI } from '../ui/GameOverUI.js';
 
 import {
     spawnCaptureCandidate
@@ -28,29 +30,14 @@ export function checkPlayerCollision(scene, time) {
             scene.playerHp -= 1;
 
             // 하트 UI 갱신
-            scene.hpHearts.forEach((heart, index) => {
-                heart.setVisible(index < scene.playerHp);
-            });
+            updateHealthUI(scene);
 
             // 체력이 0이면 게임 종료
             if (scene.playerHp <= 0) {
                 scene.isGameOver = true;
                 scene.time.paused = true;
 
-                scene.add.text(400, 300, 'GAME OVER', {
-                    fontSize: '64px',
-                    color: '#ff6b6b',
-                    fontStyle: 'bold',
-                    stroke: '#000000',
-                    strokeThickness: 5,
-                }).setOrigin(0.5).setDepth(10);
-
-                scene.add.text(400, 355, 'Press R to Restart', {
-                    fontSize: '18px',
-                    color: '#ffffff',
-                    stroke: '#000000',
-                    strokeThickness: 3,
-                }).setOrigin(0.5).setDepth(10);
+                showGameOverUI(scene);
             }
 
             // 플레이어 피격 효과
@@ -96,9 +83,7 @@ export function updateEnemyBullets(scene, time, dt) {
             scene.playerHp -= 1;
 
             // 하트 UI 갱신
-            scene.hpHearts.forEach((heart, index) => {
-                heart.setVisible(index < scene.playerHp);
-            });
+            updateHealthUI(scene);
 
             // 플레이어 피격 효과
             scene.playerImage.setTint(0xff6b6b);
@@ -117,20 +102,7 @@ export function updateEnemyBullets(scene, time, dt) {
             if (scene.playerHp <= 0) {
                 scene.isGameOver = true;
 
-                scene.add.text(400, 300, 'GAME OVER', {
-                    fontSize: '64px',
-                    color: '#ff6b6b',
-                    fontStyle: 'bold',
-                    stroke: '#000000',
-                    strokeThickness: 5,
-                }).setOrigin(0.5).setDepth(10);
-
-                scene.add.text(400, 355, 'Press R to Restart', {
-                    fontSize: '18px',
-                    color: '#ffffff',
-                    stroke: '#000000',
-                    strokeThickness: 3,
-                }).setOrigin(0.5).setDepth(10);
+                showGameOverUI(scene);
             }
 
             continue;
