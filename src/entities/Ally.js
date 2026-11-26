@@ -1,9 +1,11 @@
 import Phaser from 'phaser';
 import { updateTroopUI } from '../ui/TroopUI.js';
 import { ALLY } from '../config/gameConstants.js';
+import { createMonsterImage } from '../utils/monsterVisuals.js';
+import { separateEntities } from '../utils/entityMovement.js';
 
 import {
-    getNearestEnemyTo,
+    getNearestEnemy,
     damageEnemy
 } from '../systems/CombatSystem.js';
 
@@ -40,53 +42,19 @@ export function spawnAlly(scene, x, y, monsterType, monsterKey) {
         ally.setFillStyle(0x6ee7b7);
     }
 
-    // 근접형 아군 이미지 표시
-    if (monsterType === 'melee') {
-        ally.monsterImage = scene.add.image(
-            ally.x,
-            ally.y,
-            ally.monsterKey
-        );
+    // 아군 몬스터 이미지 생성 및 파란색 발광 효과
+    ally.monsterImage = createMonsterImage(
+        scene,
+        ally,
+        {
+            size: 48,
+            glowColor: 0x3b82f6,
+            glowStrength: 4
+        }
+    );
 
-        ally.monsterImage.setDisplaySize(48, 48);
-        ally.monsterImage.setDepth(2);
-
-        // 파란색 테두리 표시
-        ally.monsterImage.postFX.addGlow(
-            0x3b82f6,
-            4,
-            0,
-            false,
-            0.1,
-            12
-        );
-
-        ally.setAlpha(0);
-    }
-
-    // 원거리형 아군 이미지 표시
-    if (monsterType === 'ranged') {
-        ally.monsterImage = scene.add.image(
-            ally.x,
-            ally.y,
-            ally.monsterKey
-        );
-
-        ally.monsterImage.setDisplaySize(48, 48);
-        ally.monsterImage.setDepth(2);
-
-        // 파란색 테두리 표시
-        ally.monsterImage.postFX.addGlow(
-            0x3b82f6,
-            4,
-            0,
-            false,
-            0.1,
-            12
-        );
-
-        ally.setAlpha(0);
-    }
+    // 기존 아군 원 숨기기
+    ally.setAlpha(0);
 
     // 아군별 공격 시간 기록
     ally.lastAttackTime = 0;
@@ -102,14 +70,10 @@ export function updateAllies(scene, time, dt) {
     for (let i = 0; i < scene.allies.length; i++) {
         const ally = scene.allies[i];
 
-        // 이동 전 아군 위치 저장
-        const oldAllyX = ally.x;
-        const oldAllyY = ally.y;
-
         let isFighting = false;
 
         // 아군에게 가장 가까운 적 찾기
-        const targetEnemy = getNearestEnemyTo(scene, ally);
+        const targetEnemy = getNearestEnemy(scene, ally);
 
         // 가까운 적이 존재하면 전투 여부 확인
         if (targetEnemy && targetEnemy.active) {
@@ -237,37 +201,10 @@ export function updateAllies(scene, time, dt) {
 
 // 아군 간격 유지
 export function separateAllies(scene) {
-    for (let i = 0; i < scene.allies.length; i++) {
-        for (let j = i + 1; j < scene.allies.length; j++) {
-            const allyA = scene.allies[i];
-            const allyB = scene.allies[j];
-
-            // 아군 최소 간격
-            const minAllyDistance = ALLY.MIN_DISTANCE;
-
-            const dx = allyB.x - allyA.x;
-            const dy = allyB.y - allyA.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-
-            if (distance < minAllyDistance) {
-                const angle = distance === 0
-                    ? Math.random() * Math.PI * 2
-                    : Math.atan2(dy, dx);
-
-                const overlap =
-                    (minAllyDistance - distance) / 2;
-
-                const pushX = Math.cos(angle) * overlap;
-                const pushY = Math.sin(angle) * overlap;
-
-                allyA.x -= pushX;
-                allyA.y -= pushY;
-
-                allyB.x += pushX;
-                allyB.y += pushY;
-            }
-        }
-    }
+    separateEntities(
+        scene.allies,
+        ALLY.MIN_DISTANCE
+    );
 }
 
 // 아군 이동 애니메이션
@@ -310,10 +247,6 @@ export function updateAllyAnimations(scene, time) {
             } else if (ally.x > ally.prevX) {
                 ally.monsterImage.setFlipX(true);
             }
-
-            // 현재 위치 저장
-            ally.prevX = ally.x;
-            ally.prevY = ally.y;
 
             // 현재 위치 저장
             ally.prevX = ally.x;

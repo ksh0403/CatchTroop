@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
 import { spawnAlly } from '../entities/Ally.js';
+import { createMonsterImage } from '../utils/monsterVisuals.js';
+import { GAME_EVENTS } from '../config/gameEvents.js';
 
 import {
     CAPTURE,
@@ -24,7 +26,7 @@ export function registerCaptureEvents(scene) {
 
     // 적 처치 이벤트 수신 등록
     scene.events.on(
-        'enemyDefeated',
+        GAME_EVENTS.ENEMY_DEFEATED,
         onEnemyDefeated
     );
 
@@ -33,7 +35,7 @@ export function registerCaptureEvents(scene) {
         Phaser.Scenes.Events.SHUTDOWN,
         () => {
             scene.events.off(
-                'enemyDefeated',
+                GAME_EVENTS.ENEMY_DEFEATED,
                 onEnemyDefeated
             );
         }
@@ -77,11 +79,11 @@ export function updateCaptureCandidates(scene) {
                 scene.isReplacingAlly = true;
                 scene.selectedCaptureCandidate = candidate;
                 scene.time.paused = true;
-            
+
                 console.log('아군 교체 모드 시작!');
-            
+
                 // 아군 교체 요청 이벤트 발생
-                scene.events.emit('allyReplaceRequested');
+                scene.events.emit(GAME_EVENTS.ALLY_REPLACE_REQUESTED);
             }
         }
     }
@@ -164,49 +166,16 @@ export function spawnCaptureCandidate(
     candidate.monsterType = monsterType;
     candidate.monsterKey = monsterKey;
 
-    // 근접형 포획 후보 이미지 표시
-    if (monsterType === 'melee') {
-        candidate.monsterImage = scene.add.image(
-            x,
-            y,
-            candidate.monsterKey
-        );
-
-        candidate.monsterImage.setDisplaySize(60, 60);
-        candidate.monsterImage.setDepth(2);
-
-        // 흰색 발광 효과
-        candidate.monsterImage.postFX.addGlow(
-            0xffffff,
-            5,
-            0,
-            false,
-            0.1,
-            12
-        );
-    }
-
-    // 원거리형 포획 후보 이미지 표시
-    if (monsterType === 'ranged') {
-        candidate.monsterImage = scene.add.image(
-            x,
-            y,
-            candidate.monsterKey
-        );
-
-        candidate.monsterImage.setDisplaySize(60, 60);
-        candidate.monsterImage.setDepth(2);
-
-        // 흰색 발광 효과
-        candidate.monsterImage.postFX.addGlow(
-            0xffffff,
-            5,
-            0,
-            false,
-            0.1,
-            12
-        );
-    }
+    // 포획 후보 이미지 생성 및 흰색 발광 효과
+    candidate.monsterImage = createMonsterImage(
+        scene,
+        candidate,
+        {
+            size: 60,
+            glowColor: 0xffffff,
+            glowStrength: 5
+        }
+    );
 
     scene.captureCandidates.push(candidate);
 

@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { spawnEnemy } from '../entities/Enemy.js';
 import { updateHealthUI } from '../ui/HealthUI.js';
 import { showGameOverUI } from '../ui/GameOverUI.js';
+import { GAME_EVENTS } from '../config/gameEvents.js';
 
 import {
     GAME,
@@ -10,6 +11,42 @@ import {
     ALLY,
     COMBAT
 } from '../config/gameConstants.js';
+
+// 플레이어 피해 및 사망 처리
+function damagePlayer(scene, time, damage) {
+    // 이미 사망한 상태라면 피해 처리하지 않음
+    if (scene.isGameOver || scene.playerHp <= 0) return;
+
+    // 마지막 피격 시간 기록
+    scene.lastPlayerHitTime = time;
+
+    // 플레이어 체력 감소
+    scene.playerHp = Math.max(
+        0,
+        scene.playerHp - damage
+    );
+
+    // 하트 UI 갱신
+    updateHealthUI(scene);
+
+    // 플레이어 피격 효과
+    scene.playerImage.setTint(0xff6b6b);
+
+    // 0.2초 후 원래 색상 복구
+    scene.time.delayedCall(200, () => {
+        if (scene.playerImage.active) {
+            scene.playerImage.clearTint();
+        }
+    });
+
+    // 체력이 0이면 게임 종료
+    if (scene.playerHp <= 0) {
+        scene.isGameOver = true;
+        scene.time.paused = true;
+
+        showGameOverUI(scene);
+    }
+}
 
 // 적과 플레이어 충돌 확인
 export function checkPlayerCollision(scene, time) {
@@ -28,30 +65,8 @@ export function checkPlayerCollision(scene, time) {
             scene.playerHp > 0 &&
             time - scene.lastPlayerHitTime >= PLAYER.HIT_COOLDOWN
         ) {
-            scene.lastPlayerHitTime = time;
-
-            // 플레이어 체력 감소
-            scene.playerHp -= ENEMY.ATTACK_DAMAGE;
-
-            // 하트 UI 갱신
-            updateHealthUI(scene);
-
-            // 체력이 0이면 게임 종료
-            if (scene.playerHp <= 0) {
-                scene.isGameOver = true;
-                scene.time.paused = true;
-
-                showGameOverUI(scene);
-            }
-
-            // 플레이어 피격 효과
-            scene.playerImage.setTint(0xff6b6b);
-
-            scene.time.delayedCall(200, () => {
-                if (scene.playerImage.active) {
-                    scene.playerImage.clearTint();
-                }
-            });
+            // 플레이어 피해 처리
+            damagePlayer(scene, time, ENEMY.ATTACK_DAMAGE);
 
             // 한 프레임에 중복 피격 방지
             break;
@@ -81,33 +96,12 @@ export function updateEnemyBullets(scene, time, dt) {
             distanceToPlayer <= COMBAT.ENEMY_BULLET_HIT_RANGE &&
             time - scene.lastPlayerHitTime >= PLAYER.HIT_COOLDOWN
         ) {
-            scene.lastPlayerHitTime = time;
-
-            // 플레이어 체력 감소
-            scene.playerHp -= ENEMY.ATTACK_DAMAGE;
-
-            // 하트 UI 갱신
-            updateHealthUI(scene);
-
-            // 플레이어 피격 효과
-            scene.playerImage.setTint(0xff6b6b);
-
-            scene.time.delayedCall(200, () => {
-                if (scene.playerImage.active) {
-                    scene.playerImage.clearTint();
-                }
-            });
+            // 플레이어 피해 처리
+            damagePlayer(scene, time, ENEMY.ATTACK_DAMAGE);
 
             // 탄환 제거
             bullet.destroy();
             scene.enemyBullets.splice(i, 1);
-
-            // 체력이 0이면 게임 종료
-            if (scene.playerHp <= 0) {
-                scene.isGameOver = true;
-
-                showGameOverUI(scene);
-            }
 
             continue;
         }
@@ -179,32 +173,12 @@ export function updateBullets(scene, dt) {
     }
 }
 
-// 플레이어에게 가장 가까운 적 찾기
-export function getNearestEnemy(scene) {
-    let nearestEnemy = null;
-    let nearestDistance = Infinity;
-
-    for (const enemy of scene.enemies) {
-        if (!enemy.active) continue;
-
-        const distance = Phaser.Math.Distance.Between(
-            scene.player.x,
-            scene.player.y,
-            enemy.x,
-            enemy.y
-        );
-
-        if (distance < nearestDistance) {
-            nearestDistance = distance;
-            nearestEnemy = enemy;
-        }
-    }
-
-    return nearestEnemy;
-}
-
 // 특정 캐릭터에게 가장 가까운 적 찾기
-export function getNearestEnemyTo(scene, character) {
+// 캐릭터를 지정하지 않으면 플레이어를 기준으로 탐색
+export function getNearestEnemy(
+    scene,
+    character = scene.player
+) {
     let nearestEnemy = null;
     let nearestDistance = Infinity;
 
@@ -290,7 +264,7 @@ export function damageEnemy(
         scene.enemy = null;
 
         // 적 처치 이벤트 발생
-        scene.events.emit('enemyDefeated', {
+        scene.events.emit(GAME_EVENTS.ENEMY_DEFEATED, {
             x: deadX,
             y: deadY,
             monsterType: deadMonsterType,

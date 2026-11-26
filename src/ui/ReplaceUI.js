@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
 import { spawnAlly } from '../entities/Ally.js';
+import { GAME_EVENTS } from '../config/gameEvents.js';
+
 import {
     destroyCaptureCandidate
 } from '../systems/CaptureSystem.js';
@@ -13,20 +15,17 @@ export function registerReplaceUIEvents(scene) {
 
     // 아군 교체 요청 이벤트 수신 등록
     scene.events.on(
-        'allyReplaceRequested',
+        GAME_EVENTS.ALLY_REPLACE_REQUESTED,
         onAllyReplaceRequested
     );
 
     // Scene 종료 및 재시작 시 이벤트 등록 해제
-    scene.events.once(
-        Phaser.Scenes.Events.SHUTDOWN,
-        () => {
-            scene.events.off(
-                'allyReplaceRequested',
-                onAllyReplaceRequested
-            );
-        }
-    );
+    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+        scene.events.off(
+            GAME_EVENTS.ALLY_REPLACE_REQUESTED,
+            onAllyReplaceRequested
+        );
+    });
 }
 
 export function showReplaceUI(scene) {

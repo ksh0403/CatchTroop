@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
 import { ENEMY } from '../config/gameConstants.js';
+import { createMonsterImage } from '../utils/monsterVisuals.js';
+import { separateEntities } from '../utils/entityMovement.js';
 
 import {
     MELEE_MONSTERS,
@@ -74,47 +76,16 @@ export function spawnEnemy(scene) {
         enemy.setFillStyle(0xb388ff);
     }
 
-    // 근접형 적 이미지 표시
-    if (enemy.monsterType === 'melee') {
-        enemy.monsterImage = scene.add.image(
-            enemy.x,
-            enemy.y,
-            enemy.monsterKey
-        );
-
-        enemy.monsterImage.setDisplaySize(48, 48);
-        enemy.monsterImage.setDepth(2);
-
-        enemy.monsterImage.postFX.addGlow(
-            0xff3333,
-            4,
-            0,
-            false,
-            0.1,
-            12
-        );
-    }
-
-    // 원거리형 적 이미지 표시
-    if (enemy.monsterType === 'ranged') {
-        enemy.monsterImage = scene.add.image(
-            enemy.x,
-            enemy.y,
-            enemy.monsterKey
-        );
-
-        enemy.monsterImage.setDisplaySize(48, 48);
-        enemy.monsterImage.setDepth(2);
-
-        enemy.monsterImage.postFX.addGlow(
-            0xff3333,
-            4,
-            0,
-            false,
-            0.1,
-            12
-        );
-    }
+    // 적 몬스터 이미지 생성 및 빨간색 발광 효과
+    enemy.monsterImage = createMonsterImage(
+        scene,
+        enemy,
+        {
+            size: 48,
+            glowColor: 0xff3333,
+            glowStrength: 4
+        }
+    );
 
     // 이미지가 있는 적은 기존 원을 숨김
     if (enemy.monsterImage) {
@@ -225,38 +196,8 @@ export function updateEnemies(scene, time, dt) {
 
 // 적 몬스터 간격 유지
 export function separateEnemies(scene) {
-    const minEnemyDistance = ENEMY.MIN_DISTANCE;
-
-    for (let i = 0; i < scene.enemies.length; i++) {
-        for (let j = i + 1; j < scene.enemies.length; j++) {
-            const enemyA = scene.enemies[i];
-            const enemyB = scene.enemies[j];
-
-            if (!enemyA.active || !enemyB.active) continue;
-
-            const dx = enemyB.x - enemyA.x;
-            const dy = enemyB.y - enemyA.y;
-
-            const distance = Math.sqrt(dx * dx + dy * dy);
-
-            if (distance < minEnemyDistance) {
-                const angle =
-                    distance === 0
-                        ? Math.random() * Math.PI * 2
-                        : Math.atan2(dy, dx);
-
-                const overlap =
-                    (minEnemyDistance - distance) / 2;
-
-                const pushX = Math.cos(angle) * overlap;
-                const pushY = Math.sin(angle) * overlap;
-
-                enemyA.x -= pushX;
-                enemyA.y -= pushY;
-
-                enemyB.x += pushX;
-                enemyB.y += pushY;
-            }
-        }
-    }
+    separateEntities(
+        scene.enemies,
+        ENEMY.MIN_DISTANCE
+    );
 }
