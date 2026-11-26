@@ -1,11 +1,44 @@
 import Phaser from 'phaser';
 import { spawnAlly } from '../entities/Ally.js';
-import { showReplaceUI } from '../ui/ReplaceUI.js';
 
 import {
     CAPTURE,
     ALLY
 } from '../config/gameConstants.js';
+
+// 포획 시스템 이벤트 등록
+export function registerCaptureEvents(scene) {
+    // 적 처치 이벤트 처리
+    const onEnemyDefeated = (enemyData) => {
+        // 설정된 확률에 따라 포획 후보 생성
+        if (Math.random() < CAPTURE.CHANCE) {
+            spawnCaptureCandidate(
+                scene,
+                enemyData.x,
+                enemyData.y,
+                enemyData.monsterType,
+                enemyData.monsterKey
+            );
+        }
+    };
+
+    // 적 처치 이벤트 수신 등록
+    scene.events.on(
+        'enemyDefeated',
+        onEnemyDefeated
+    );
+
+    // Scene 종료 및 재시작 시 이벤트 등록 해제
+    scene.events.once(
+        Phaser.Scenes.Events.SHUTDOWN,
+        () => {
+            scene.events.off(
+                'enemyDefeated',
+                onEnemyDefeated
+            );
+        }
+    );
+}
 
 // 포획 후보 영입
 export function updateCaptureCandidates(scene) {
@@ -40,19 +73,21 @@ export function updateCaptureCandidates(scene) {
                     monsterKey
                 );
             } else if (!scene.isReplacingAlly) {
-                // 아군이 10마리면 교체 모드 시작
+                // 아군이 최대 보유 수에 도달하면 교체 모드 시작
                 scene.isReplacingAlly = true;
                 scene.selectedCaptureCandidate = candidate;
                 scene.time.paused = true;
-
+            
                 console.log('아군 교체 모드 시작!');
-                showReplaceUI(scene);
+            
+                // 아군 교체 요청 이벤트 발생
+                scene.events.emit('allyReplaceRequested');
             }
         }
     }
 }
 
-// 포획 후보와 몬스터 이미지를 함께 제거
+// 포획 후보 제거
 export function destroyCaptureCandidate(scene, candidate) {
     if (!candidate || !candidate.active) return;
 
@@ -175,7 +210,7 @@ export function spawnCaptureCandidate(
 
     scene.captureCandidates.push(candidate);
 
-    // CAPTURE.DURATION초 후 포획 후보 소멸
+    // 설정된 유지 시간이 지나면 포획 후보 소멸
     scene.time.delayedCall(CAPTURE.DURATION, () => {
         // 게임 오버 상태라면 삭제하지 않음
         if (scene.isGameOver) return;

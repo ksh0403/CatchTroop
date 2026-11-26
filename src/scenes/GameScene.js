@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { createHealthUI } from '../ui/HealthUI.js';
 import { createTroopUI } from '../ui/TroopUI.js';
+import { registerReplaceUIEvents } from '../ui/ReplaceUI.js';
 
 import {
     GAME,
@@ -40,6 +41,7 @@ import {
 
 import {
     updateCaptureCandidates,
+    registerCaptureEvents
 } from '../systems/CaptureSystem.js';
 
 export default class GameScene extends Phaser.Scene {
@@ -88,7 +90,7 @@ export default class GameScene extends Phaser.Scene {
             GAME.HEIGHT / 2,
             'field_background'
         );
-        
+
         this.fieldBackground.setDisplaySize(
             GAME.WIDTH,
             GAME.HEIGHT
@@ -134,6 +136,12 @@ export default class GameScene extends Phaser.Scene {
 
         // 포획 후보
         this.captureCandidates = [];
+
+        // 포획 시스템 이벤트 등록
+        registerCaptureEvents(this);
+
+        // 아군 교체 UI 이벤트 등록
+        registerReplaceUIEvents(this);
 
         // 적
         this.enemy = null;

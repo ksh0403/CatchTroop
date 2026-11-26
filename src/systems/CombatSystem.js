@@ -8,13 +8,8 @@ import {
     PLAYER,
     ENEMY,
     ALLY,
-    CAPTURE,
     COMBAT
 } from '../config/gameConstants.js';
-
-import {
-    spawnCaptureCandidate
-} from './CaptureSystem.js';
 
 // 적과 플레이어 충돌 확인
 export function checkPlayerCollision(scene, time) {
@@ -174,9 +169,9 @@ export function updateBullets(scene, dt) {
         // 화면 밖으로 나간 탄환 제거
         if (
             bullet.x < 0 ||
-            bullet.x > 800 ||
+            bullet.x > GAME.WIDTH ||
             bullet.y < 0 ||
-            bullet.y > 600
+            bullet.y > GAME.HEIGHT
         ) {
             bullet.destroy();
             scene.bullets.splice(i, 1);
@@ -294,18 +289,15 @@ export function damageEnemy(
 
         scene.enemy = null;
 
-        // 50% 확률로 포획 후보 등장
-        if (Math.random() < CAPTURE.CHANCE) {
-            spawnCaptureCandidate(
-                scene,
-                deadX,
-                deadY,
-                deadMonsterType,
-                deadMonsterKey
-            );
-        }
+        // 적 처치 이벤트 발생
+        scene.events.emit('enemyDefeated', {
+            x: deadX,
+            y: deadY,
+            monsterType: deadMonsterType,
+            monsterKey: deadMonsterKey
+        });
 
-        // ENEMY.RESPAWN_DELAY초 후 적 재생성
+        // 적 처치 후 설정된 대기 시간이 지나면 재생성
         scene.time.delayedCall(ENEMY.RESPAWN_DELAY, () => {
             if (!scene.isGameOver && !scene.isReplacingAlly) {
                 spawnEnemy(scene);

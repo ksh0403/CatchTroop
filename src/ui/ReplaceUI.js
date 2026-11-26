@@ -4,6 +4,31 @@ import {
     destroyCaptureCandidate
 } from '../systems/CaptureSystem.js';
 
+// 아군 교체 UI 이벤트 등록
+export function registerReplaceUIEvents(scene) {
+    // 아군 교체 요청 이벤트 처리
+    const onAllyReplaceRequested = () => {
+        showReplaceUI(scene);
+    };
+
+    // 아군 교체 요청 이벤트 수신 등록
+    scene.events.on(
+        'allyReplaceRequested',
+        onAllyReplaceRequested
+    );
+
+    // Scene 종료 및 재시작 시 이벤트 등록 해제
+    scene.events.once(
+        Phaser.Scenes.Events.SHUTDOWN,
+        () => {
+            scene.events.off(
+                'allyReplaceRequested',
+                onAllyReplaceRequested
+            );
+        }
+    );
+}
+
 export function showReplaceUI(scene) {
     // 교체 창 배경
     scene.replacePanel = scene.add.rectangle(
