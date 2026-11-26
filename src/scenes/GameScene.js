@@ -1,37 +1,14 @@
 import Phaser from 'phaser';
 
-// 근접형 몬스터 목록
-const MELEE_MONSTERS = [
-    'crest_bird',
-    'fire_cat',
-    'fire_fox',
-    'forest_boar',
-    'leaf_rabbit',
-    'leaf_slime',
-    'leaf_turtle',
-    'mushroomling',
-    'red_panda',
-    'spiky_hedgehog',
-];
-
-// 원거리형 몬스터 목록
-const RANGED_MONSTERS = [
-    'bubble_jelly',
-    'crystalling',
-    'dark_bat',
-    'flowerling',
-    'knowledge_owl',
-    'snowman',
-    'star_mage',
-    'thunder_cloud',
-    'will_o_wisp',
-    'wind_bird',
-];
+import {
+  MELEE_MONSTERS,
+  RANGED_MONSTERS
+} from '../data/monsterData.js';
 
 export default class GameScene extends Phaser.Scene {
-    constructor() {
-        super('GameScene');
-    }
+  constructor() {
+    super('GameScene');
+  }
 
     // 몬스터 이미지 불러오기
     preload() {
