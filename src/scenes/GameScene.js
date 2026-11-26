@@ -1,14 +1,14 @@
 import Phaser from 'phaser';
 
 import {
-  MELEE_MONSTERS,
-  RANGED_MONSTERS
+    MELEE_MONSTERS,
+    RANGED_MONSTERS
 } from '../data/monsterData.js';
 
 export default class GameScene extends Phaser.Scene {
-  constructor() {
-    super('GameScene');
-  }
+    constructor() {
+        super('GameScene');
+    }
 
     // 몬스터 이미지 불러오기
     preload() {
@@ -166,6 +166,7 @@ export default class GameScene extends Phaser.Scene {
             return;
         }
 
+        // 게임 오버 및 재시작
         if (this.isGameOver) {
             // R 키를 누르면 게임 처음부터 다시 시작
             if (Phaser.Input.Keyboard.JustDown(this.restartKey)) {
@@ -178,7 +179,45 @@ export default class GameScene extends Phaser.Scene {
 
         const dt = delta / 1000;
 
-        // 개발용 테스트: T 키를 누르면 아군 10마리 채우기
+        // 개발용 테스트
+        this.handleDebugInput();
+
+        // 포획 후보 영입
+        this.updateCaptureCandidates();
+
+        // 플레이어 이동
+        this.updatePlayer(time, dt);
+
+        // 적 몬스터 추적 및 공격
+        this.updateEnemies(time, dt);
+
+        // 적 몬스터 간격 유지
+        this.separateEnemies();
+
+        // 플레이어 충돌 확인
+        this.checkPlayerCollision(time);
+
+        // 적 마법탄 처리
+        this.updateEnemyBullets(time, dt);
+
+        // 플레이어 자동 공격
+        this.updatePlayerAttack(time);
+
+        // 플레이어 및 아군 마법탄 처리
+        this.updateBullets(dt);
+
+        // 아군 이동 및 공격
+        this.updateAllies(time, dt);
+
+        // 아군 간격 유지
+        this.separateAllies();
+
+        // 아군 이동 애니메이션
+        this.updateAllyAnimations(time);
+    }
+
+    // 개발용 테스트: T 키를 누르면 아군 10마리 채우기
+    handleDebugInput() {
         if (Phaser.Input.Keyboard.JustDown(this.testKey)) {
             while (this.allies.length < 10) {
                 const monsterType = Math.random() < 0.5
@@ -194,11 +233,10 @@ export default class GameScene extends Phaser.Scene {
 
             console.log('테스트용 아군 10마리 생성 완료!');
         }
+    }
 
-        // ─────────────────────
-        // 포획 후보 영입
-        // ─────────────────────
-
+    // 포획 후보 영입
+    updateCaptureCandidates() {
         for (let i = this.captureCandidates.length - 1; i >= 0; i--) {
             const candidate = this.captureCandidates[i];
 
@@ -227,18 +265,17 @@ export default class GameScene extends Phaser.Scene {
                     // 아군이 10마리면 교체 모드 시작
                     this.isReplacingAlly = true;
                     this.selectedCaptureCandidate = candidate;
-                    this.time.paused = true; // 게임 타이머 일시정지
+                    this.time.paused = true;
 
                     console.log('아군 교체 모드 시작!');
                     this.showReplaceUI();
                 }
             }
         }
+    }
 
-        // ─────────────────────
-        // 1. 플레이어 이동
-        // ─────────────────────
-
+    // 플레이어 이동 및 애니메이션
+    updatePlayer(time, dt) {
         let dx = 0;
         let dy = 0;
 
@@ -262,23 +299,21 @@ export default class GameScene extends Phaser.Scene {
             bounce = Math.abs(Math.sin(time * 0.012)) * 3;
         }
 
-        // 플레이어 이미지 위치 및 통통 튀는 효과
         this.playerImage.setPosition(
             this.player.x,
             this.player.y - bounce
         );
 
-        // 플레이어 이동 방향에 따라 이미지 좌우 반전
+        // 이동 방향에 따른 이미지 좌우 반전
         if (dx < 0) {
             this.playerImage.setFlipX(true);
         } else if (dx > 0) {
             this.playerImage.setFlipX(false);
         }
+    }
 
-        // ─────────────────────
-        // 2. 적 몬스터 추적
-        // ─────────────────────
-
+    // 적 몬스터 추적 및 공격
+    updateEnemies(time, dt) {
         for (const enemy of this.enemies) {
             if (!enemy.active) continue;
 
@@ -309,7 +344,7 @@ export default class GameScene extends Phaser.Scene {
             if (enemy.monsterImage) {
                 let enemyBounce = 0;
 
-                // 근접형 몬스터가 이동할 때 통통 튀는 효과
+                // 근접형 몬스터 이동 효과
                 if (
                     enemy.monsterType === 'melee' &&
                     distance > targetDistance
@@ -319,7 +354,7 @@ export default class GameScene extends Phaser.Scene {
                     ) * 2;
                 }
 
-                // 원거리형 몬스터가 부드럽게 떠다니는 효과
+                // 원거리형 몬스터 부유 효과
                 if (enemy.monsterType === 'ranged') {
                     enemyBounce = Math.sin(time * 0.005) * 2;
                 }
@@ -329,19 +364,18 @@ export default class GameScene extends Phaser.Scene {
                     enemy.y - enemyBounce
                 );
 
-                // 적 몬스터 이동 방향에 따라 이미지 좌우 반전
+                // 이동 방향에 따른 이미지 좌우 반전
                 if (enemy.x < enemy.prevX) {
                     enemy.monsterImage.setFlipX(false);
                 } else if (enemy.x > enemy.prevX) {
                     enemy.monsterImage.setFlipX(true);
                 }
 
-                // 현재 적 몬스터 위치 저장
                 enemy.prevX = enemy.x;
                 enemy.prevY = enemy.y;
             }
 
-            // 원거리형 몬스터만 2초마다 탄환 발사
+            // 원거리형 몬스터 공격
             if (
                 enemy.monsterType === 'ranged' &&
                 distance <= 250 &&
@@ -372,8 +406,10 @@ export default class GameScene extends Phaser.Scene {
                 this.enemyBullets.push(bullet);
             }
         }
+    }
 
-        // 적끼리 겹치지 않도록 간격 유지
+    // 적 몬스터 간격 유지
+    separateEnemies() {
         const minEnemyDistance = 25;
 
         for (let i = 0; i < this.enemies.length; i++) {
@@ -389,7 +425,6 @@ export default class GameScene extends Phaser.Scene {
                 const distance = Math.sqrt(dx * dx + dy * dy);
 
                 if (distance < minEnemyDistance) {
-                    // 정확히 같은 위치일 때도 분리할 방향 설정
                     const angle =
                         distance === 0
                             ? Math.random() * Math.PI * 2
@@ -408,8 +443,10 @@ export default class GameScene extends Phaser.Scene {
                 }
             }
         }
+    }
 
-        // 적과 플레이어 충돌 확인
+    // 적과 플레이어 충돌 확인
+    checkPlayerCollision(time) {
         for (const enemy of this.enemies) {
             if (!enemy.active) continue;
 
@@ -420,16 +457,14 @@ export default class GameScene extends Phaser.Scene {
                 enemy.y
             );
 
-            // 적과 닿았고, 마지막 피격 이후 1초가 지났을 때
             if (
                 distanceToPlayer <= 35 &&
                 this.playerHp > 0 &&
                 time - this.lastPlayerHitTime >= 1000
             ) {
-                // 마지막 피격 시간 기록
                 this.lastPlayerHitTime = time;
 
-                // 체력 1 감소
+                // 플레이어 체력 감소
                 this.playerHp -= 1;
 
                 // 하트 UI 갱신
@@ -437,10 +472,10 @@ export default class GameScene extends Phaser.Scene {
                     heart.setVisible(index < this.playerHp);
                 });
 
-                // 체력이 0이 되면 게임 종료
+                // 체력이 0이면 게임 종료
                 if (this.playerHp <= 0) {
                     this.isGameOver = true;
-                    this.time.paused = true; // 게임 오버 시 모든 타이머 정지
+                    this.time.paused = true;
 
                     this.add.text(400, 300, 'GAME OVER', {
                         fontSize: '64px',
@@ -450,7 +485,6 @@ export default class GameScene extends Phaser.Scene {
                         strokeThickness: 5,
                     }).setOrigin(0.5).setDepth(10);
 
-                    // 게임 재시작 안내 문구
                     this.add.text(400, 355, 'Press R to Restart', {
                         fontSize: '18px',
                         color: '#ffffff',
@@ -459,7 +493,7 @@ export default class GameScene extends Phaser.Scene {
                     }).setOrigin(0.5).setDepth(10);
                 }
 
-                // 플레이어 이미지 피격 효과
+                // 플레이어 피격 효과
                 this.playerImage.setTint(0xff6b6b);
 
                 this.time.delayedCall(200, () => {
@@ -468,15 +502,14 @@ export default class GameScene extends Phaser.Scene {
                     }
                 });
 
-                // 한 프레임에 중복 피격되지 않도록 종료
+                // 한 프레임에 중복 피격 방지
                 break;
             }
         }
+    }
 
-        // ─────────────────────
-        // 적 원거리 탄환 이동
-        // ─────────────────────
-
+    // 적 마법탄 이동 및 충돌 처리
+    updateEnemyBullets(time, dt) {
         for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
             const bullet = this.enemyBullets[i];
 
@@ -484,7 +517,7 @@ export default class GameScene extends Phaser.Scene {
             bullet.x += bullet.vx * 180 * dt;
             bullet.y += bullet.vy * 180 * dt;
 
-            // 플레이어와 탄환 충돌 확인
+            // 플레이어와 탄환 사이 거리 계산
             const distanceToPlayer = Phaser.Math.Distance.Between(
                 bullet.x,
                 bullet.y,
@@ -492,7 +525,7 @@ export default class GameScene extends Phaser.Scene {
                 this.player.y
             );
 
-            // 탄환에 맞았고, 마지막 피격 이후 1초가 지났다면
+            // 플레이어 피격 확인
             if (
                 distanceToPlayer <= 26 &&
                 time - this.lastPlayerHitTime >= 1000
@@ -507,7 +540,7 @@ export default class GameScene extends Phaser.Scene {
                     heart.setVisible(index < this.playerHp);
                 });
 
-                // 플레이어 이미지 피격 효과
+                // 플레이어 피격 효과
                 this.playerImage.setTint(0xff6b6b);
 
                 this.time.delayedCall(200, () => {
@@ -520,9 +553,10 @@ export default class GameScene extends Phaser.Scene {
                 bullet.destroy();
                 this.enemyBullets.splice(i, 1);
 
-                // 체력이 0이면 게임 오버
+                // 체력이 0이면 게임 종료
                 if (this.playerHp <= 0) {
                     this.isGameOver = true;
+
                     this.add.text(400, 300, 'GAME OVER', {
                         fontSize: '64px',
                         color: '#ff6b6b',
@@ -531,7 +565,6 @@ export default class GameScene extends Phaser.Scene {
                         strokeThickness: 5,
                     }).setOrigin(0.5).setDepth(10);
 
-                    // 게임 재시작 안내 문구
                     this.add.text(400, 355, 'Press R to Restart', {
                         fontSize: '18px',
                         color: '#ffffff',
@@ -543,7 +576,7 @@ export default class GameScene extends Phaser.Scene {
                 continue;
             }
 
-            // 화면 밖으로 나가면 제거
+            // 화면 밖으로 나간 탄환 제거
             if (
                 bullet.x < 0 ||
                 bullet.x > 800 ||
@@ -554,11 +587,10 @@ export default class GameScene extends Phaser.Scene {
                 this.enemyBullets.splice(i, 1);
             }
         }
+    }
 
-        // ─────────────────────
-        // 3. 플레이어 자동 공격
-        // ─────────────────────
-
+    // 플레이어 자동 공격
+    updatePlayerAttack(time) {
         const nearestEnemy = this.getNearestEnemy();
 
         if (nearestEnemy) {
@@ -577,11 +609,10 @@ export default class GameScene extends Phaser.Scene {
                 this.lastAttackTime = time;
             }
         }
+    }
 
-        // ─────────────────────
-        // 4. 마법탄 이동 및 충돌
-        // ─────────────────────
-
+    // 플레이어 및 아군 마법탄 이동과 충돌 처리
+    updateBullets(dt) {
         for (let i = this.bullets.length - 1; i >= 0; i--) {
             const bullet = this.bullets[i];
 
@@ -628,12 +659,10 @@ export default class GameScene extends Phaser.Scene {
                 this.bullets.splice(i, 1);
             }
         }
+    }
 
-
-        // ─────────────────────
-        // 5. 아군 행동
-        // ─────────────────────
-
+    // 아군 이동 및 공격
+    updateAllies(time, dt) {
         for (let i = 0; i < this.allies.length; i++) {
             const ally = this.allies[i];
 
@@ -762,11 +791,10 @@ export default class GameScene extends Phaser.Scene {
                 ally.y += allyDirection.y * moveDistance;
             }
         }
+    }
 
-        // ─────────────────────
-        // 아군끼리 겹치지 않도록 간격 유지
-        // ─────────────────────
-
+    // 아군 간격 유지
+    separateAllies() {
         for (let i = 0; i < this.allies.length; i++) {
             for (let j = i + 1; j < this.allies.length; j++) {
                 const allyA = this.allies[i];
@@ -798,8 +826,10 @@ export default class GameScene extends Phaser.Scene {
                 }
             }
         }
+    }
 
-        // 아군 몬스터 이미지 이동 애니메이션
+    // 아군 이동 애니메이션
+    updateAllyAnimations(time) {
         for (const ally of this.allies) {
             if (ally.active && ally.monsterImage) {
                 let allyBounce = 0;
@@ -848,8 +878,13 @@ export default class GameScene extends Phaser.Scene {
                 ally.prevY = ally.y;
             }
         }
-
     }
+
+
+
+
+
+
 
     // ─────────────────────
     // 6. 마법탄 생성
