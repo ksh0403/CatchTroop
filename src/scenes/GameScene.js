@@ -55,6 +55,16 @@ import {
     updateSurvivalUI
 } from '../ui/SurvivalUI.js';
 
+import {
+    initScore,
+    registerScoreEvents
+} from '../systems/ScoreSystem.js';
+
+import {
+    createScoreUI,
+    updateScoreUI
+} from '../ui/ScoreUI.js';
+
 export default class GameScene extends Phaser.Scene {
     constructor() {
         super('GameScene');
@@ -160,6 +170,12 @@ export default class GameScene extends Phaser.Scene {
         // 아군 교체 UI 이벤트 등록
         registerReplaceUIEvents(this);
 
+        // 점수 시스템 초기화
+        initScore(this);
+
+        // 점수 시스템 이벤트 등록
+        registerScoreEvents(this);
+
         // 적
         this.enemy = null;
         this.enemies = [];
@@ -187,6 +203,9 @@ export default class GameScene extends Phaser.Scene {
 
         // 생존 시간 UI 생성
         createSurvivalUI(this);
+
+        // 점수 UI 생성
+        createScoreUI(this);
 
         this.add.text(400, 550, 'Move: WASD / Arrow Keys', {
             fontSize: '18px',
@@ -269,6 +288,9 @@ export default class GameScene extends Phaser.Scene {
 
         // 아군 이동 애니메이션
         updateAllyAnimations(this, time);
+
+        // 점수 UI 갱신
+        updateScoreUI(this);
     }
 
     // 개발용 테스트: T 키를 누르면 아군 10마리 채우기
