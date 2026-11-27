@@ -45,6 +45,27 @@ import {
     registerCaptureEvents
 } from '../systems/CaptureSystem.js';
 
+import {
+    initSurvivalTime,
+    updateSurvivalTime
+} from '../systems/SurvivalSystem.js';
+
+import {
+    createSurvivalUI,
+    updateSurvivalUI
+} from '../ui/SurvivalUI.js';
+
+import {
+    initScore,
+    registerScoreEvents,
+    updateScore
+} from '../systems/ScoreSystem.js';
+
+import {
+    createScoreUI,
+    updateScoreUI
+} from '../ui/ScoreUI.js';
+
 export default class GameScene extends Phaser.Scene {
     constructor() {
         super('GameScene');
@@ -86,7 +107,7 @@ export default class GameScene extends Phaser.Scene {
             );
         }
     }
-    
+
     create() {
         // 게임 화면이 서서히 밝아지는 효과
         this.cameras.main.fadeIn(600, 0, 0, 0);
@@ -150,6 +171,12 @@ export default class GameScene extends Phaser.Scene {
         // 아군 교체 UI 이벤트 등록
         registerReplaceUIEvents(this);
 
+        // 점수 시스템 초기화
+        initScore(this);
+
+        // 점수 시스템 이벤트 등록
+        registerScoreEvents(this);
+
         // 적
         this.enemy = null;
         this.enemies = [];
@@ -171,6 +198,15 @@ export default class GameScene extends Phaser.Scene {
 
         // 플레이어 체력 UI 생성
         createHealthUI(this);
+
+        // 생존 시간 초기화
+        initSurvivalTime(this);
+
+        // 생존 시간 UI 생성
+        createSurvivalUI(this);
+
+        // 점수 UI 생성
+        createScoreUI(this);
 
         this.add.text(400, 550, 'Move: WASD / Arrow Keys', {
             fontSize: '18px',
@@ -205,6 +241,21 @@ export default class GameScene extends Phaser.Scene {
         // 포획 후보 영입
         updateCaptureCandidates(this);
 
+        // 아군 교체 창이 열리면 게임 진행 중단
+        if (this.isReplacingAlly) {
+            return;
+        }
+
+        // 생존 시간 갱신
+        updateSurvivalTime(this, dt);
+
+        // 생존 시간 UI 갱신
+        updateSurvivalUI(this);
+
+        // 현재 생존 점수 반영
+        updateScore(this);
+        updateScoreUI(this);
+
         // 플레이어 이동
         updatePlayer(this, time, dt);
 
@@ -217,8 +268,16 @@ export default class GameScene extends Phaser.Scene {
         // 플레이어 충돌 확인
         checkPlayerCollision(this, time);
 
+        if (this.isGameOver) {
+            return;
+        }
+
         // 적 마법탄 처리
         updateEnemyBullets(this, time, dt);
+
+        if (this.isGameOver) {
+            return;
+        }
 
         // 플레이어 자동 공격
         updatePlayerAttack(this, time);
@@ -234,6 +293,12 @@ export default class GameScene extends Phaser.Scene {
 
         // 아군 이동 애니메이션
         updateAllyAnimations(this, time);
+
+        // 점수 계산
+        updateScore(this);
+
+        // 점수 UI 갱신
+        updateScoreUI(this);
     }
 
     // 개발용 테스트: T 키를 누르면 아군 10마리 채우기

@@ -83,3 +83,11 @@ export const COMBAT = {
     ENEMY_BULLET_HIT_RANGE: 26,  // 적 마법탄의 플레이어 피격 판정 거리 (px)
     FRIENDLY_BULLET_HIT_RANGE: 21, // 플레이어 및 아군 마법탄의 적 명중 판정 거리 (px)
 };
+
+// ─────────────────────
+// 점수 관련 설정
+// ─────────────────────
+export const SCORE = {
+    SURVIVAL_PER_SECOND: 1, // 생존 1초당 점수
+    PER_KILL: 10           // 몬스터 처치당 점수
+};
