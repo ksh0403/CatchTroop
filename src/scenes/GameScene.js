@@ -57,7 +57,8 @@ import {
 
 import {
     initScore,
-    registerScoreEvents
+    registerScoreEvents,
+    updateScore
 } from '../systems/ScoreSystem.js';
 
 import {
@@ -251,6 +252,10 @@ export default class GameScene extends Phaser.Scene {
         // 생존 시간 UI 갱신
         updateSurvivalUI(this);
 
+        // 현재 생존 점수 반영
+        updateScore(this);
+        updateScoreUI(this);
+
         // 플레이어 이동
         updatePlayer(this, time, dt);
 
@@ -288,6 +293,9 @@ export default class GameScene extends Phaser.Scene {
 
         // 아군 이동 애니메이션
         updateAllyAnimations(this, time);
+
+        // 점수 계산
+        updateScore(this);
 
         // 점수 UI 갱신
         updateScoreUI(this);
