@@ -45,6 +45,16 @@ import {
     registerCaptureEvents
 } from '../systems/CaptureSystem.js';
 
+import {
+    initSurvivalTime,
+    updateSurvivalTime
+} from '../systems/SurvivalSystem.js';
+
+import {
+    createSurvivalUI,
+    updateSurvivalUI
+} from '../ui/SurvivalUI.js';
+
 export default class GameScene extends Phaser.Scene {
     constructor() {
         super('GameScene');
@@ -86,7 +96,7 @@ export default class GameScene extends Phaser.Scene {
             );
         }
     }
-    
+
     create() {
         // 게임 화면이 서서히 밝아지는 효과
         this.cameras.main.fadeIn(600, 0, 0, 0);
@@ -172,6 +182,12 @@ export default class GameScene extends Phaser.Scene {
         // 플레이어 체력 UI 생성
         createHealthUI(this);
 
+        // 생존 시간 초기화
+        initSurvivalTime(this);
+
+        // 생존 시간 UI 생성
+        createSurvivalUI(this);
+
         this.add.text(400, 550, 'Move: WASD / Arrow Keys', {
             fontSize: '18px',
             color: '#ffffff',
@@ -205,6 +221,17 @@ export default class GameScene extends Phaser.Scene {
         // 포획 후보 영입
         updateCaptureCandidates(this);
 
+        // 아군 교체 창이 열리면 게임 진행 중단
+        if (this.isReplacingAlly) {
+            return;
+        }
+
+        // 생존 시간 갱신
+        updateSurvivalTime(this, dt);
+
+        // 생존 시간 UI 갱신
+        updateSurvivalUI(this);
+
         // 플레이어 이동
         updatePlayer(this, time, dt);
 
@@ -217,8 +244,16 @@ export default class GameScene extends Phaser.Scene {
         // 플레이어 충돌 확인
         checkPlayerCollision(this, time);
 
+        if (this.isGameOver) {
+            return;
+        }
+
         // 적 마법탄 처리
         updateEnemyBullets(this, time, dt);
+
+        if (this.isGameOver) {
+            return;
+        }
 
         // 플레이어 자동 공격
         updatePlayerAttack(this, time);
